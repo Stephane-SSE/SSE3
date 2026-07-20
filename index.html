@@ -1266,7 +1266,7 @@ async function createEtablissement(){
     if(existing.exists()){
       id = id + '-' + Date.now().toString(36).slice(-4);
     }
-    await db.ref('etablissements/' + id).set({ nom: nom });
+    await db.ref('etablissements/' + id + '/nom').set(nom);
     elCreateEtabMsg.className = 'admin-msg ok';
     elCreateEtabMsg.textContent = 'Établissement créé (identifiant : ' + id + ').';
     elNewEtabNom.value = '';
