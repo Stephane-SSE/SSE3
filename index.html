@@ -670,6 +670,17 @@
         <input type="file" id="file-import" accept=".xlsx">
         <span class="admin-msg" id="import-msg">Remplace les données de cet établissement pour tous ses utilisateurs (quantités remises au niveau du fichier importé).</span>
       </div>
+
+      <div class="admin-body" id="local-user-attach" style="display:none;flex-direction:column;align-items:stretch;">
+        <label style="display:block;font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--teal);margin-bottom:4px;">Ajouter un utilisateur à mon établissement</label>
+        <p style="font-size:12px;color:var(--muted);margin:0 0 8px;">Créez d'abord le compte dans Console Firebase &gt; Authentication, copiez son UID, puis rattachez-le ici — il sera automatiquement rattaché à <b id="local-attach-etab-name"></b>, sans avoir besoin de choisir un établissement.</p>
+        <div class="admin-lock-row">
+          <input type="text" id="local-attach-uid" placeholder="UID de l'utilisateur" style="flex:1;min-width:160px;padding:9px 10px;font-size:14px;border:1.5px solid var(--line);border-radius:8px;">
+          <label style="font-size:12.5px;display:flex;align-items:center;gap:4px;"><input type="checkbox" id="local-attach-is-admin"> Administrateur de cet établissement</label>
+          <button class="btn-secondary" id="btn-local-attach-user" type="button">Rattacher</button>
+        </div>
+        <span class="admin-msg" id="local-attach-msg"></span>
+      </div>
     </details>
 
     <details class="admin-zone" id="superadmin-zone" style="display:none;">
@@ -730,13 +741,13 @@
    (Console Firebase > Paramètres du projet > Vos applications > config)
    ========================================================================== */
 const FIREBASE_CONFIG = {
-  apiKey: "AIzaSyAwY8yN1k5iB-3fvZcrvAFhSbHXI5pv4a0",
-  authDomain: "deploiement-psm2.firebaseapp.com",
-  databaseURL: "https://deploiement-psm2-default-rtdb.europe-west1.firebasedatabase.app",
-  projectId: "deploiement-psm2",
-  storageBucket: "deploiement-psm2.firebasestorage.app",
-  messagingSenderId: "1089612352162",
-  appId: "1:1089612352162:web:af80f7c58307a2b32325fb"
+  apiKey: "AIzaSyBKLZxQ7p4P1Ntx374LRrj6PCOwzqKXUVw",
+  authDomain: "deploiement-psm-v3.firebaseapp.com",
+  databaseURL: "https://deploiement-psm-v3-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "deploiement-psm-v3",
+  storageBucket: "deploiement-psm-v3.firebasestorage.app",
+  messagingSenderId: "705283055655",
+  appId: "1:705283055655:web:6d121b62f58baab251ee02"
 };
 
 const DATA_URL = './psm.json'; // utilisé uniquement pour amorcer la base la 1ère fois
@@ -785,6 +796,13 @@ const elImportMsg  = document.getElementById('import-msg');
 const elAdminZone    = document.getElementById('admin-zone');
 const elAdminDenied  = document.getElementById('admin-denied');
 const elAdminAllowed = document.getElementById('admin-allowed');
+// Rattachement d'utilisateur par un admin local (scopé à son propre établissement)
+const elLocalUserAttach     = document.getElementById('local-user-attach');
+const elLocalAttachEtabName = document.getElementById('local-attach-etab-name');
+const elLocalAttachUid      = document.getElementById('local-attach-uid');
+const elLocalAttachIsAdmin  = document.getElementById('local-attach-is-admin');
+const elBtnLocalAttachUser  = document.getElementById('btn-local-attach-user');
+const elLocalAttachMsg      = document.getElementById('local-attach-msg');
 // Établissement
 const elEtabLine      = document.getElementById('etab-line');
 const elEtabNameValue = document.getElementById('etab-name-value');
@@ -1159,6 +1177,7 @@ async function resolveEtablissement(user){
       elEtabLine.style.display = 'none';
       elEtabPending.style.display = 'flex';
       elAdminZone.style.display = 'none';
+      elLocalUserAttach.style.display = 'none';
       setInputsEnabled(false);
       elResults.innerHTML = '<div class="hint">Rattachez votre compte à un établissement dans le panneau « Super-administration » ci-dessous pour accéder à la recherche.</div>';
       elCount.innerHTML = '';
@@ -1188,6 +1207,13 @@ async function resolveEtablissement(user){
   elAdminZone.style.display = 'block';
   elAdminAllowed.style.display = isAdmin ? 'flex' : 'none';
   elAdminDenied.style.display  = isAdmin ? 'none' : 'flex';
+
+  if(isAdmin){
+    elLocalUserAttach.style.display = 'flex';
+    elLocalAttachEtabName.textContent = elEtabNameValue.textContent || etabId;
+  }else{
+    elLocalUserAttach.style.display = 'none';
+  }
 
   attachDatabase(etabId);
 }
@@ -1345,6 +1371,43 @@ elBtnCreateEtab.addEventListener('click', createEtablissement);
 elBtnAttachUser.addEventListener('click', attachUserToEtab);
 elBtnMigrate.addEventListener('click', migrateLegacyData);
 
+// Rattache un utilisateur à l'établissement de l'admin connecté (pas de choix
+// d'établissement : il est automatiquement celui de la personne qui rattache).
+async function attachUserToMyEtab(){
+  const uid = (elLocalAttachUid.value || '').trim();
+  const asAdmin = elLocalAttachIsAdmin.checked;
+  elLocalAttachMsg.className = 'admin-msg';
+  elLocalAttachMsg.textContent = '';
+  if(!currentEtabId){
+    elLocalAttachMsg.className = 'admin-msg err';
+    elLocalAttachMsg.textContent = 'Aucun établissement actif sur ce compte.';
+    return;
+  }
+  if(!uid || uid.length < 10){
+    elLocalAttachMsg.className = 'admin-msg err';
+    elLocalAttachMsg.textContent = 'Indiquez un UID valide (Console Firebase > Authentication).';
+    return;
+  }
+  elBtnLocalAttachUser.disabled = true;
+  elLocalAttachMsg.textContent = 'Rattachement…';
+  try{
+    await db.ref('users/' + uid + '/etablissementId').set(currentEtabId);
+    if(asAdmin){
+      await db.ref('etablissements/' + currentEtabId + '/admins/' + uid).set(true);
+    }
+    elLocalAttachMsg.className = 'admin-msg ok';
+    elLocalAttachMsg.textContent = 'Utilisateur rattaché à ' + (elEtabNameValue.textContent || currentEtabId) + (asAdmin ? ' (administrateur)' : '') + '.';
+    elLocalAttachUid.value = '';
+    elLocalAttachIsAdmin.checked = false;
+  }catch(err){
+    elLocalAttachMsg.className = 'admin-msg err';
+    elLocalAttachMsg.textContent = 'Erreur : ' + err.message;
+  }finally{
+    elBtnLocalAttachUser.disabled = false;
+  }
+}
+elBtnLocalAttachUser.addEventListener('click', attachUserToMyEtab);
+
 /* ---- Bascule écran connexion / application ---- */
 function showApp(user){
   elLoginOverlay.classList.add('hidden');
@@ -1357,6 +1420,7 @@ function showNotAttached(){
   elEtabLine.style.display = 'none';
   elAdminZone.style.display = 'none';
   elSuperadminZone.style.display = 'none';
+  elLocalUserAttach.style.display = 'none';
   setInputsEnabled(false);
   elResults.innerHTML = '';
   elCount.innerHTML = '';
@@ -1367,6 +1431,7 @@ function showLogin(){
   elUserBar.style.display = 'none';
   elAdminZone.style.display = 'none';
   elSuperadminZone.style.display = 'none';
+  elLocalUserAttach.style.display = 'none';
   elEtabLine.style.display = 'none';
   setInputsEnabled(false);
   elLoginPass.value = '';
