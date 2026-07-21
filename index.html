@@ -677,14 +677,10 @@
 
     <div id="fin-prelevement-panel" style="display:none;margin-top:10px;padding:12px;border:1.5px dashed var(--line);border-radius:10px;">
       <div id="fin-prelevement-summary" style="font-size:13px;margin-bottom:8px;"></div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px;">
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
         <label style="font-size:12.5px;color:var(--muted);">Jour :</label>
         <input type="date" id="fin-prelevement-jour" style="padding:8px 10px;font-size:14px;border:1.5px solid var(--line);border-radius:8px;">
         <button class="btn-secondary" id="btn-reexporter-jour" type="button">Ré-exporter ce jour</button>
-      </div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-        <input type="email" id="fin-prelevement-email" placeholder="e-mail pour l'envoi (facultatif)" style="flex:1;min-width:180px;padding:9px 10px;font-size:14px;border:1.5px solid var(--line);border-radius:8px;">
-        <button class="btn-secondary" id="btn-envoyer-recap" type="button">Envoyer par e-mail</button>
       </div>
       <span class="admin-msg" id="fin-prelevement-msg"></span>
     </div>
@@ -851,8 +847,6 @@ const elFinPrelevementPanel  = document.getElementById('fin-prelevement-panel');
 const elFinPrelevementSummary= document.getElementById('fin-prelevement-summary');
 const elFinPrelevementJour   = document.getElementById('fin-prelevement-jour');
 const elBtnReexporterJour    = document.getElementById('btn-reexporter-jour');
-const elFinPrelevementEmail  = document.getElementById('fin-prelevement-email');
-const elBtnEnvoyerRecap      = document.getElementById('btn-envoyer-recap');
 if(elFinPrelevementJour){
   const p = n => String(n).padStart(2,'0');
   const now = new Date();
@@ -2022,7 +2016,6 @@ async function exporterJour(dateKey, demanderConfirmation){
     elFinPrelevementPanel.style.display = 'block';
     elFinPrelevementMsg.className = 'admin-msg';
     elFinPrelevementMsg.textContent = '';
-    if(currentUser && currentUser.email) elFinPrelevementEmail.value = currentUser.email;
   }catch(err){
     alert('Erreur lors de la génération des fichiers : ' + err.message);
   }
@@ -2039,57 +2032,6 @@ elBtnReexporterJour.addEventListener('click', ()=>{
     return;
   }
   exporterJour(dateKey, false);
-});
-
-elBtnEnvoyerRecap.addEventListener('click', async ()=>{
-  const email = (elFinPrelevementEmail.value || '').trim();
-  elFinPrelevementMsg.className = 'admin-msg';
-  elFinPrelevementMsg.textContent = '';
-
-  if(!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){
-    elFinPrelevementMsg.className = 'admin-msg err';
-    elFinPrelevementMsg.textContent = 'Indiquez un e-mail valide.';
-    return;
-  }
-  if(!lastRecapXlsxBlob || !lastRecapPdfBlob){
-    elFinPrelevementMsg.className = 'admin-msg err';
-    elFinPrelevementMsg.textContent = 'Aucun récapitulatif à envoyer (générez-le d\'abord via « Fin de prélèvement »).';
-    return;
-  }
-  if(!WEB3FORMS_ACCESS_KEY || WEB3FORMS_ACCESS_KEY.startsWith('REMPLACER')){
-    elFinPrelevementMsg.className = 'admin-msg err';
-    elFinPrelevementMsg.textContent = 'Envoi non configuré (clé Web3Forms manquante).';
-    return;
-  }
-
-  elBtnEnvoyerRecap.disabled = true;
-  elFinPrelevementMsg.textContent = 'Envoi en cours…';
-
-  try{
-    const formData = new FormData();
-    formData.append('access_key', WEB3FORMS_ACCESS_KEY);
-    formData.append('subject', 'Récapitulatif de prélèvement PSM');
-    formData.append('from_name', 'Application PSM');
-    formData.append('email', email);
-    formData.append('message', 'Récapitulatif des prélèvements ci-joint (Excel et PDF).');
-    formData.append('attachment', lastRecapXlsxBlob, 'prelevements.xlsx');
-    formData.append('attachment2', lastRecapPdfBlob, 'prelevements.pdf');
-
-    const resp = await fetch('https://api.web3forms.com/submit', { method: 'POST', body: formData });
-    const data = await resp.json();
-    if(data && data.success){
-      elFinPrelevementMsg.className = 'admin-msg ok';
-      elFinPrelevementMsg.textContent = 'Récapitulatif envoyé à ' + email + '.';
-    }else{
-      elFinPrelevementMsg.className = 'admin-msg err';
-      elFinPrelevementMsg.textContent = 'Échec de l\'envoi (' + ((data && data.message) || 'vérifiez que votre compte Web3Forms accepte les pièces jointes') + '). Les fichiers restent disponibles en téléchargement ci-dessus.';
-    }
-  }catch(err){
-    elFinPrelevementMsg.className = 'admin-msg err';
-    elFinPrelevementMsg.textContent = 'Échec de l\'envoi : ' + err.message + '. Les fichiers restent disponibles en téléchargement ci-dessus.';
-  }finally{
-    elBtnEnvoyerRecap.disabled = false;
-  }
 });
 
 // Délégation d'événements : sélection d'un produit, retour, et validation prélèvement.
