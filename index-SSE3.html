@@ -1,0 +1,2224 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Recherche Produits · PSM</title>
+
+<!--
+  ==========================================================================
+  CONFIGURATION FIREBASE - A FAIRE AVANT DEPLOIEMENT
+  ==========================================================================
+  1. Aller sur https://console.firebase.google.com et créer un projet gratuit.
+  2. Dans le projet : "Créer une base de données" > "Realtime Database"
+     (PAS Firestore). Démarrer en mode "test" (règles ouvertes), on
+     durcira les règles ensuite (voir instructions fournies séparément).
+  3. Dans les paramètres du projet > "Vos applications" > icône Web (</>),
+     enregistrer une appli. Copier l'objet de config fourni.
+  4. Remplacer l'objet FIREBASE_CONFIG ci-dessous (dans le <script> en bas
+     de ce fichier) par vos propres valeurs.
+  ==========================================================================
+-->
+
+<script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-database-compat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+
+<style>
+  :root{
+    --ink:#132A32;
+    --navy:#0E3B4D;
+    --teal:#0F5D63;
+    --teal-light:#E7F1F0;
+    --amber:#D98B3D;
+    --red:#B23B3B;
+    --paper:#F6F5F1;
+    --card:#FFFFFF;
+    --line:#DDE3E1;
+    --muted:#5A6B6C;
+    --radius:10px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--paper);
+    color:var(--ink);
+    font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing:antialiased;
+    padding-bottom:60px;
+  }
+
+  header.top{
+    background:var(--navy);
+    color:#fff;
+    padding:22px 18px 26px;
+    position:relative;
+    overflow:hidden;
+  }
+  header.top::after{
+    content:"";
+    position:absolute;
+    right:-40px; top:-40px;
+    width:160px; height:160px;
+    border-radius:50%;
+    background:radial-gradient(circle, rgba(217,139,61,0.35), transparent 70%);
+  }
+  .eyebrow{
+    font-family:'Courier New', monospace;
+    letter-spacing:0.14em;
+    text-transform:uppercase;
+    font-size:11px;
+    color:var(--amber);
+    margin:0 0 6px;
+    display:flex;
+    align-items:center;
+    gap:8px;
+  }
+  .status-dot{
+    width:8px; height:8px;
+    border-radius:50%;
+    background:#8a8a8a;
+    display:inline-block;
+  }
+  .status-dot.online{ background:#4CAF50; }
+  .status-dot.offline{ background:var(--red); }
+  h1{
+    font-family:'Arial Narrow', 'Helvetica Neue Condensed', Arial, sans-serif;
+    font-weight:800;
+    font-size:28px;
+    letter-spacing:0.01em;
+    margin:0;
+    text-transform:uppercase;
+  }
+  .sub{
+    margin:6px 0 0;
+    font-size:13.5px;
+    color:#C9D6D3;
+    max-width:560px;
+    position:relative;
+    z-index:1;
+  }
+
+  main{
+    max-width:720px;
+    margin:0 auto;
+    padding:0 14px;
+  }
+
+  .searchcard{
+    background:var(--card);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    padding:16px;
+    margin-top:-16px;
+    position:relative;
+    z-index:2;
+    box-shadow:0 6px 18px rgba(14,59,77,0.08);
+  }
+  .field{
+    margin-bottom:12px;
+  }
+  .field label{
+    display:block;
+    font-size:11.5px;
+    font-weight:700;
+    text-transform:uppercase;
+    letter-spacing:0.06em;
+    color:var(--teal);
+    margin-bottom:6px;
+  }
+  .field input{
+    width:100%;
+    padding:12px 12px;
+    font-size:16px;
+    border:1.5px solid var(--line);
+    border-radius:8px;
+    background:#FCFCFB;
+    color:var(--ink);
+    transition:border-color .15s;
+  }
+  .field input:focus{
+    outline:none;
+    border-color:var(--teal);
+    background:#fff;
+  }
+  .field input:disabled{
+    background:#EFEFEC;
+    color:var(--muted);
+  }
+  .row-actions{
+    display:flex;
+    gap:10px;
+    align-items:center;
+    margin-top:4px;
+    flex-wrap:wrap;
+  }
+  button{
+    font-family:inherit;
+  }
+  button#raz, button#btn-fin-prelevement{
+    flex:0 0 auto;
+    background:transparent;
+    border:1.5px solid var(--navy);
+    color:var(--navy);
+    font-weight:700;
+    font-size:13.5px;
+    padding:10px 16px;
+    border-radius:8px;
+    cursor:pointer;
+    letter-spacing:0.02em;
+  }
+  button#raz:active, button#btn-fin-prelevement:active{ background:var(--navy); color:#fff; }
+  button#raz:disabled, button#btn-fin-prelevement:disabled{ opacity:0.5; cursor:not-allowed; }
+  .count-badge{
+    font-size:12.5px;
+    color:var(--muted);
+  }
+  .count-badge b{ color:var(--navy); }
+
+  .admin-zone{
+    margin-top:14px;
+    padding-top:12px;
+    border-top:1px dashed var(--line);
+  }
+  .admin-zone summary{
+    cursor:pointer;
+    font-size:12px;
+    color:var(--muted);
+    font-weight:700;
+    text-transform:uppercase;
+    letter-spacing:0.04em;
+  }
+  .admin-body{
+    margin-top:10px;
+    display:flex;
+    gap:10px;
+    align-items:center;
+    flex-wrap:wrap;
+  }
+  .btn-secondary{
+    background:var(--teal-light);
+    border:1px solid var(--teal);
+    color:var(--teal);
+    font-weight:700;
+    font-size:13px;
+    padding:9px 14px;
+    border-radius:8px;
+    cursor:pointer;
+  }
+  .btn-secondary:hover{ background:#d9ece9; }
+  input[type=file]{ display:none; }
+  .admin-msg{ font-size:12.5px; color:var(--muted); }
+  .admin-msg.ok{ color:#2E7D32; }
+  .admin-msg.err{ color:var(--red); }
+  .admin-lock-label{
+    font-size:12.5px;
+    color:var(--muted);
+    width:100%;
+  }
+  .admin-lock-row{
+    display:flex;
+    gap:8px;
+    align-items:center;
+    flex-wrap:wrap;
+  }
+  #admin-pass{
+    padding:9px 10px;
+    font-size:15px;
+    border:1.5px solid var(--line);
+    border-radius:8px;
+    background:#FCFCFB;
+    color:var(--ink);
+    width:160px;
+  }
+  #admin-pass:focus{ outline:none; border-color:var(--teal); background:#fff; }
+  .btn-lock{
+    background:transparent;
+    border:1px solid var(--muted);
+    color:var(--muted);
+    font-weight:700;
+    font-size:12.5px;
+    padding:8px 12px;
+    border-radius:8px;
+    cursor:pointer;
+  }
+  .btn-lock:hover{ background:#eee; }
+
+  .results{ margin-top:18px; }
+
+  .list-hint{
+    font-size:12.5px;
+    color:var(--muted);
+    margin-bottom:10px;
+  }
+  /* Étape 1 : produits cliquables */
+  .produit-item{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    gap:10px;
+    width:100%;
+    text-align:left;
+    background:var(--card);
+    border:1px solid var(--line);
+    border-left:5px solid var(--navy);
+    border-radius:8px;
+    padding:12px 14px;
+    margin-bottom:9px;
+    cursor:pointer;
+    font-family:inherit;
+    transition:background .12s, box-shadow .12s;
+  }
+  .produit-item:hover{ background:#FBFBF9; box-shadow:0 3px 10px rgba(14,59,77,0.07); }
+  .produit-item:active{ background:var(--teal-light); }
+  .produit-item-main{ min-width:0; flex:1; }
+  .produit-item-side{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    flex:0 0 auto;
+  }
+  .chevron{
+    font-size:24px;
+    color:var(--teal);
+    line-height:1;
+  }
+
+  .produit-card{
+    background:var(--card);
+    border:1px solid var(--line);
+    border-left:5px solid var(--navy);
+    border-radius:8px;
+    padding:14px 16px;
+    margin-bottom:12px;
+  }
+  .produit-libelle{
+    font-family:'Arial Narrow', 'Helvetica Neue Condensed', Arial, sans-serif;
+    font-weight:800;
+    font-size:18px;
+    color:var(--navy);
+    letter-spacing:0.01em;
+    line-height:1.2;
+  }
+  .produit-ref{
+    color:var(--muted);
+    font-size:13px;
+    margin-top:3px;
+  }
+  .produit-refcat{
+    font-family:'Courier New', monospace;
+    font-size:11.5px;
+    color:var(--teal);
+    margin-top:4px;
+  }
+
+  .btn-back{
+    background:transparent;
+    border:none;
+    color:var(--teal);
+    font-weight:700;
+    font-size:14px;
+    padding:6px 0 12px;
+    cursor:pointer;
+    font-family:inherit;
+  }
+  .btn-back:hover{ text-decoration:underline; }
+
+  .malles-label{
+    margin-top:12px;
+    font-size:11px;
+    font-weight:700;
+    text-transform:uppercase;
+    letter-spacing:0.06em;
+    color:var(--teal);
+  }
+  .malle-line{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    gap:8px;
+    flex-wrap:wrap;
+  }
+  .malle-chip{
+    background:var(--teal-light);
+    color:var(--navy);
+    font-family:'Arial Narrow', 'Helvetica Neue Condensed', Arial, sans-serif;
+    font-weight:800;
+    font-size:16px;
+    letter-spacing:0.02em;
+    padding:2px 10px;
+    border-radius:6px;
+  }
+  .malle-count{
+    background:var(--teal-light);
+    color:var(--teal);
+    font-size:11.5px;
+    font-weight:700;
+    padding:3px 9px;
+    border-radius:999px;
+    white-space:nowrap;
+  }
+  ul.items{ list-style:none; margin:10px 0 0; padding:0; }
+  ul.items li{
+    padding:10px 0;
+    border-top:1px dashed var(--line);
+    font-size:14px;
+  }
+  ul.items li:first-child{ border-top:none; }
+  .item-qte{
+    display:inline-block;
+    margin-top:6px;
+    font-size:13px;
+    color:var(--amber);
+    font-weight:700;
+  }
+  .item-qte.zero{ color:var(--red); }
+
+  .prelevement-row{
+    display:flex;
+    gap:8px;
+    align-items:center;
+    margin-top:8px;
+    flex-wrap:wrap;
+  }
+  .prelevement-row label{
+    font-size:12px;
+    color:var(--muted);
+    white-space:nowrap;
+  }
+  .prelevement-row input{
+    width:80px;
+    padding:7px 8px;
+    font-size:14px;
+    border:1.5px solid var(--line);
+    border-radius:6px;
+  }
+  .btn-valider{
+    background:var(--navy);
+    color:#fff;
+    border:none;
+    font-size:12.5px;
+    font-weight:700;
+    padding:8px 12px;
+    border-radius:6px;
+    cursor:pointer;
+  }
+  .btn-valider:active{ background:var(--teal); }
+  .btn-valider:disabled{ opacity:0.5; cursor:not-allowed; }
+  .row-msg{
+    font-size:12px;
+    margin-top:5px;
+    min-height:14px;
+  }
+  .row-msg.ok{ color:#2E7D32; }
+  .row-msg.err{ color:var(--red); }
+
+  mark{ background:#FBE3C4; color:inherit; padding:0 1px; border-radius:2px; }
+
+  .empty, .hint, .loading, .error{
+    text-align:center;
+    padding:40px 20px;
+    color:var(--muted);
+    font-size:14px;
+  }
+  .empty b{ color:var(--navy); }
+  .error{ color:var(--red); }
+  .error b{ color:#8A2626; }
+  .spinner{
+    display:inline-block;
+    width:16px; height:16px;
+    border:2.5px solid var(--line);
+    border-top-color:var(--teal);
+    border-radius:50%;
+    animation:spin .8s linear infinite;
+    vertical-align:middle;
+    margin-right:8px;
+  }
+  @keyframes spin{ to{ transform:rotate(360deg); } }
+
+  footer.note{
+    max-width:720px;
+    margin:24px auto 0;
+    padding:0 14px;
+    font-size:11.5px;
+    color:var(--muted);
+    text-align:center;
+  }
+
+  @media (min-width:600px){
+    h1{ font-size:32px; }
+    .searchcard{ padding:20px 22px; }
+  }
+
+  /* ---- Écran de connexion ---- */
+  #login-overlay{
+    position:fixed;
+    inset:0;
+    background:var(--navy);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:20px;
+    z-index:1000;
+  }
+  #login-overlay.hidden{ display:none; }
+  .login-card{
+    background:var(--card);
+    border-radius:14px;
+    padding:28px 24px;
+    width:100%;
+    max-width:360px;
+    box-shadow:0 12px 40px rgba(0,0,0,0.3);
+  }
+  .login-card .eyebrow{ color:var(--amber); }
+  .login-card h2{
+    font-family:'Arial Narrow', 'Helvetica Neue Condensed', Arial, sans-serif;
+    font-weight:800;
+    font-size:24px;
+    text-transform:uppercase;
+    color:var(--navy);
+    margin:2px 0 4px;
+  }
+  .login-card p.intro{
+    font-size:13px;
+    color:var(--muted);
+    margin:0 0 18px;
+  }
+  .login-field{ margin-bottom:12px; }
+  .login-field label{
+    display:block;
+    font-size:11.5px;
+    font-weight:700;
+    text-transform:uppercase;
+    letter-spacing:0.06em;
+    color:var(--teal);
+    margin-bottom:5px;
+  }
+  .login-field input, .login-field select{
+    width:100%;
+    padding:12px;
+    font-size:16px;
+    border:1.5px solid var(--line);
+    border-radius:8px;
+    background:#FCFCFB;
+  }
+  .login-field input:focus, .login-field select:focus{ outline:none; border-color:var(--teal); background:#fff; }
+  .btn-login{
+    width:100%;
+    background:var(--navy);
+    color:#fff;
+    border:none;
+    font-weight:700;
+    font-size:15px;
+    padding:12px;
+    border-radius:8px;
+    cursor:pointer;
+    margin-top:6px;
+  }
+  .btn-login:active{ background:var(--teal); }
+  .btn-login:disabled{ opacity:.6; cursor:not-allowed; }
+  .login-msg{
+    font-size:13px;
+    margin-top:12px;
+    min-height:16px;
+    text-align:center;
+  }
+  .login-msg.err{ color:var(--red); }
+  .login-msg.ok{ color:#2E7D32; }
+  .login-forgot{
+    display:block;
+    text-align:center;
+    margin-top:14px;
+    font-size:12.5px;
+    color:var(--teal);
+    background:none;
+    border:none;
+    cursor:pointer;
+    width:100%;
+    font-family:inherit;
+  }
+  .login-forgot:hover{ text-decoration:underline; }
+
+  /* ---- Barre utilisateur (dans le header) ---- */
+  .user-bar{
+    position:absolute;
+    top:14px; right:14px;
+    z-index:1;
+    display:flex;
+    align-items:center;
+    gap:8px;
+    font-size:12px;
+    color:#C9D6D3;
+  }
+  .user-bar .user-email{
+    max-width:150px;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    white-space:nowrap;
+  }
+  .btn-logout{
+    background:rgba(255,255,255,0.12);
+    border:1px solid rgba(255,255,255,0.3);
+    color:#fff;
+    font-size:11.5px;
+    font-weight:700;
+    padding:5px 10px;
+    border-radius:6px;
+    cursor:pointer;
+    font-family:inherit;
+  }
+  .btn-logout:hover{ background:rgba(255,255,255,0.22); }
+  .admin-note{ font-size:12.5px; color:var(--muted); }
+</style>
+</head>
+<body>
+
+<div id="login-overlay">
+  <div class="login-card">
+    <!-- Panneau CONNEXION -->
+    <div id="login-panel">
+      <p class="eyebrow">Poste Sanitaire Mobile</p>
+      <h2>Connexion</h2>
+      <p class="intro">Identifiez-vous pour accéder à la recherche produits.</p>
+      <div class="login-field">
+        <label for="login-email">Adresse e-mail</label>
+        <input type="email" id="login-email" autocomplete="username" inputmode="email" placeholder="prenom.nom@exemple.fr">
+      </div>
+      <div class="login-field">
+        <label for="login-password">Mot de passe</label>
+        <input type="password" id="login-password" autocomplete="current-password" placeholder="Mot de passe">
+      </div>
+      <button class="btn-login" id="btn-login" type="button">Se connecter</button>
+      <div class="login-msg" id="login-msg"></div>
+      <button class="login-forgot" id="btn-forgot" type="button">Mot de passe oublié ?</button>
+      <button class="login-forgot" id="btn-show-request" type="button">Pas encore de compte ? Demander un accès</button>
+    </div>
+
+    <!-- Panneau DEMANDE DE COMPTE -->
+    <div id="request-panel" style="display:none;">
+      <p class="eyebrow">Poste Sanitaire Mobile</p>
+      <h2>Demander un accès</h2>
+      <p class="intro">Votre demande est envoyée à l'administrateur. Après validation, vous recevrez vos identifiants.</p>
+      <div class="login-field">
+        <label for="req-name">Nom et prénom</label>
+        <input type="text" id="req-name" autocomplete="name" placeholder="Prénom Nom">
+      </div>
+      <div class="login-field">
+        <label for="req-email">Adresse e-mail</label>
+        <input type="email" id="req-email" autocomplete="email" inputmode="email" placeholder="prenom.nom@exemple.fr">
+      </div>
+      <div class="login-field">
+        <label for="req-etab">Établissement / site PSM</label>
+        <select id="req-etab">
+          <option value="" selected disabled>Sélectionnez votre établissement</option>
+          <option value="ch-arras">CH Arras</option>
+          <option value="ch-beauvais">CH Beauvais</option>
+          <option value="ch-boulogne-sur-mer">CH Boulogne-sur-Mer</option>
+          <option value="ch-calais">CH Calais</option>
+          <option value="ch-compiegne-noyon">CH Compiègne-Noyon</option>
+          <option value="ch-dunkerque">CH Dunkerque</option>
+          <option value="ch-laon">CH Laon</option>
+          <option value="ch-lens">CH Lens</option>
+          <option value="ch-roubaix">CH Roubaix</option>
+          <option value="ch-valenciennes">CH Valenciennes</option>
+          <option value="chu-amiens">CHU Amiens</option>
+          <option value="chu-lille">CHU Lille</option>
+        </select>
+      </div>
+      <div class="login-field">
+        <label for="req-motif">Service / motif (facultatif)</label>
+        <input type="text" id="req-motif" placeholder="ex. Pharmacie, PSM Nord…">
+      </div>
+      <button class="btn-login" id="btn-send-request" type="button">Envoyer la demande</button>
+      <div class="login-msg" id="request-msg"></div>
+      <button class="login-forgot" id="btn-back-login" type="button">‹ Retour à la connexion</button>
+    </div>
+  </div>
+</div>
+
+<div id="not-attached-overlay" style="position:fixed;inset:0;background:var(--navy);display:none;align-items:center;justify-content:center;padding:20px;z-index:999;">
+  <div class="login-card">
+    <p class="eyebrow">Poste Sanitaire Mobile</p>
+    <h2>Compte non rattaché</h2>
+    <p class="intro">Votre compte est authentifié mais n'est rattaché à aucun établissement ni à aucun fichier de stock. Contactez l'administrateur pour qu'il vous rattache à votre PSM.</p>
+    <button class="btn-login" id="btn-logout-notattached" type="button">Déconnexion</button>
+  </div>
+</div>
+
+<header class="top">
+  <div class="user-bar" id="user-bar" style="display:none;">
+    <span class="user-email" id="user-email"></span>
+    <button class="btn-logout" id="btn-logout" type="button">Déconnexion</button>
+  </div>
+  <p class="eyebrow"><span class="status-dot" id="status-dot"></span><span id="status-text">Connexion…</span></p>
+  <h1>Recherche produits</h1>
+  <p class="sub" id="etab-line" style="display:none;font-weight:700;color:#fff;">Établissement : <span id="etab-name-value"></span></p>
+  <p class="sub">Trouvez dans quelle(s) malle(s) se trouve un produit, consultez la quantité disponible et enregistrez un prélèvement. Les mises à jour sont partagées en temps réel entre tous les utilisateurs.</p>
+</header>
+
+<main>
+  <section class="searchcard">
+    <div class="field">
+      <label for="q-libelle">Libellé catalogue</label>
+      <input type="text" id="q-libelle" placeholder="ex. atropine · salem 18 · salem*18" autocomplete="off" inputmode="search" disabled>
+    </div>
+    <div class="field">
+      <label for="q-produit">Produit référentiel</label>
+      <input type="text" id="q-produit" placeholder="ex. injectable, comprimé, perfusion…" autocomplete="off" inputmode="search" disabled>
+    </div>
+    <div class="row-actions">
+      <button id="raz" type="button" disabled>Remise à zéro</button>
+      <button id="btn-fin-prelevement" type="button" disabled>Fin de prélèvement</button>
+      <span class="count-badge" id="count-badge"></span>
+    </div>
+
+    <div id="fin-prelevement-panel" style="display:none;margin-top:10px;padding:12px;border:1.5px dashed var(--line);border-radius:10px;">
+      <div id="fin-prelevement-summary" style="font-size:13px;margin-bottom:8px;"></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+        <input type="email" id="fin-prelevement-email" placeholder="e-mail pour l'envoi (facultatif)" style="flex:1;min-width:180px;padding:9px 10px;font-size:14px;border:1.5px solid var(--line);border-radius:8px;">
+        <button class="btn-secondary" id="btn-envoyer-recap" type="button">Envoyer par e-mail</button>
+      </div>
+      <span class="admin-msg" id="fin-prelevement-msg"></span>
+    </div>
+
+    <details class="admin-zone" id="admin-zone" style="display:none;">
+      <summary>Mise à jour des données (import Liste_PSM.xlsx)</summary>
+
+      <div class="admin-body" id="admin-denied" style="display:none;">
+        <span class="admin-note">La mise à jour des données est réservée aux administrateurs. Votre compte n'a pas ce rôle.</span>
+      </div>
+
+      <div class="admin-body" id="admin-allowed" style="display:none;">
+        <button class="btn-secondary" id="btn-import" type="button">Charger un fichier Liste_PSM.xlsx</button>
+        <input type="file" id="file-import" accept=".xlsx">
+        <span class="admin-msg" id="import-msg">Remplace les données de cet établissement pour tous ses utilisateurs (quantités remises au niveau du fichier importé).</span>
+      </div>
+
+      <div class="admin-body" id="local-user-attach" style="display:none;flex-direction:column;align-items:stretch;">
+        <label style="display:block;font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--teal);margin-bottom:4px;">Créer un utilisateur pour mon établissement</label>
+        <p style="font-size:12px;color:var(--muted);margin:0 0 8px;">Saisissez son e-mail : le compte est créé, rattaché à <b id="local-attach-etab-name"></b>, et un e-mail lui est envoyé pour définir son mot de passe. Aucun accès à la Console Firebase nécessaire.</p>
+        <div class="admin-lock-row">
+          <input type="email" id="local-create-email" placeholder="e-mail du nouvel utilisateur" style="flex:1;min-width:160px;padding:9px 10px;font-size:14px;border:1.5px solid var(--line);border-radius:8px;">
+          <label style="font-size:12.5px;display:flex;align-items:center;gap:4px;"><input type="checkbox" id="local-create-is-admin"> Administrateur de cet établissement</label>
+          <button class="btn-secondary" id="btn-local-create-user" type="button">Créer le compte</button>
+        </div>
+        <span class="admin-msg" id="local-create-msg"></span>
+
+        <p style="font-size:11.5px;color:var(--muted);margin:14px 0 4px;">Ou rattacher un compte déjà existant (créé ailleurs) :</p>
+        <div class="admin-lock-row">
+          <input type="text" id="local-attach-uid" placeholder="UID de l'utilisateur" style="flex:1;min-width:160px;padding:9px 10px;font-size:14px;border:1.5px solid var(--line);border-radius:8px;">
+          <label style="font-size:12.5px;display:flex;align-items:center;gap:4px;"><input type="checkbox" id="local-attach-is-admin"> Administrateur de cet établissement</label>
+          <button class="btn-secondary" id="btn-local-attach-user" type="button">Rattacher</button>
+        </div>
+        <span class="admin-msg" id="local-attach-msg"></span>
+      </div>
+
+      <div class="admin-body" id="local-demandes-block" style="display:none;flex-direction:column;align-items:stretch;">
+        <label style="display:block;font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--teal);margin-bottom:4px;">Demandes d'inscription en attente</label>
+        <div id="local-demandes-list" style="font-size:13px;"></div>
+      </div>
+    </details>
+
+    <details class="admin-zone" id="superadmin-zone" style="display:none;">
+      <summary>Super-administration — établissements</summary>
+
+      <div class="admin-body" id="etab-pending" style="display:none;">
+        <span class="admin-note">Votre compte super-administrateur n'est rattaché à aucun établissement pour l'usage quotidien. Créez ou choisissez un établissement ci-dessous, puis rattachez-y votre propre UID (visible dans Console Firebase &gt; Authentication).</span>
+      </div>
+
+      <div class="admin-body" style="flex-direction:column;align-items:stretch;">
+        <div>
+          <label style="display:block;font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--teal);margin-bottom:6px;">Créer un établissement</label>
+          <div class="admin-lock-row">
+            <input type="text" id="new-etab-nom" placeholder="Nom de l'établissement (ex. Hôpital de Roubaix)" style="flex:1;min-width:160px;padding:9px 10px;font-size:14px;border:1.5px solid var(--line);border-radius:8px;">
+            <button class="btn-secondary" id="btn-create-etab" type="button">Créer</button>
+          </div>
+          <span class="admin-msg" id="create-etab-msg"></span>
+        </div>
+
+        <div style="margin-top:14px;">
+          <label style="display:block;font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--teal);margin-bottom:6px;">Établissements existants</label>
+          <div id="etab-list" style="font-size:13px;"></div>
+        </div>
+
+        <div style="margin-top:14px;">
+          <label style="display:block;font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--teal);margin-bottom:4px;">Créer un utilisateur pour un établissement</label>
+          <p style="font-size:12px;color:var(--muted);margin:0 0 8px;">Saisissez son e-mail, choisissez l'établissement : le compte est créé et un e-mail lui est envoyé pour définir son mot de passe.</p>
+          <div class="admin-lock-row">
+            <input type="email" id="create-email" placeholder="e-mail du nouvel utilisateur" style="flex:1;min-width:160px;padding:9px 10px;font-size:14px;border:1.5px solid var(--line);border-radius:8px;">
+            <select id="create-etab-select" style="padding:9px 10px;font-size:14px;border:1.5px solid var(--line);border-radius:8px;background:#FCFCFB;"></select>
+            <label style="font-size:12.5px;display:flex;align-items:center;gap:4px;"><input type="checkbox" id="create-is-admin"> Admin local</label>
+            <button class="btn-secondary" id="btn-create-user" type="button">Créer le compte</button>
+          </div>
+          <span class="admin-msg" id="create-user-msg"></span>
+
+          <p style="font-size:11.5px;color:var(--muted);margin:14px 0 4px;">Ou rattacher un compte déjà existant (UID Firebase) :</p>
+          <div class="admin-lock-row">
+            <input type="text" id="attach-uid" placeholder="UID de l'utilisateur" style="flex:1;min-width:160px;padding:9px 10px;font-size:14px;border:1.5px solid var(--line);border-radius:8px;">
+            <select id="attach-etab-select" style="padding:9px 10px;font-size:14px;border:1.5px solid var(--line);border-radius:8px;background:#FCFCFB;"></select>
+            <label style="font-size:12.5px;display:flex;align-items:center;gap:4px;"><input type="checkbox" id="attach-is-admin"> Admin local</label>
+            <button class="btn-secondary" id="btn-attach-user" type="button">Rattacher</button>
+          </div>
+          <span class="admin-msg" id="attach-msg"></span>
+        </div>
+
+        <div style="margin-top:14px;">
+          <label style="display:block;font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--teal);margin-bottom:6px;">Demandes d'inscription en attente (tous établissements)</label>
+          <div id="super-demandes-list" style="font-size:13px;"></div>
+        </div>
+
+        <div style="margin-top:14px;display:none;" id="migration-block">
+          <label style="display:block;font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--red);margin-bottom:4px;">Migration des anciennes données</label>
+          <p style="font-size:12px;color:var(--muted);margin:0 0 8px;">D'anciennes données (hors établissements, à la racine de la base) ont été détectées. Migrez-les vers un établissement "historique".</p>
+          <button class="btn-secondary" id="btn-migrate" type="button">Migrer vers « etab-principal »</button>
+          <span class="admin-msg" id="migrate-msg"></span>
+        </div>
+      </div>
+    </details>
+  </section>
+
+
+  <section class="results" id="results">
+    <div class="loading"><span class="spinner"></span>Connexion à la base partagée…</div>
+  </section>
+</main>
+
+<footer class="note">Données partagées en temps réel (Firebase) &middot; recherche sur texte partiel, insensible aux accents/majuscules &middot; les quantités affichées ne sont jamais additionnées entre elles.</footer>
+
+<script>
+/* ==========================================================================
+   CONFIGURATION FIREBASE - remplacer par les valeurs de VOTRE projet
+   (Console Firebase > Paramètres du projet > Vos applications > config)
+   ========================================================================== */
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyBKLZxQ7p4P1Ntx374LRrj6PCOwzqKXUVw",
+  authDomain: "deploiement-psm-v3.firebaseapp.com",
+  databaseURL: "https://deploiement-psm-v3-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "deploiement-psm-v3",
+  storageBucket: "deploiement-psm-v3.firebasestorage.app",
+  messagingSenderId: "705283055655",
+  appId: "1:705283055655:web:6d121b62f58baab251ee02"
+};
+
+const DATA_URL = './psm.json'; // utilisé uniquement pour amorcer la base la 1ère fois
+
+/* ==========================================================================
+   DEMANDE DE COMPTE — envoi d'e-mail à l'administrateur (Web3Forms)
+   --------------------------------------------------------------------------
+   1. Allez sur https://web3forms.com, cliquez "Create Access Key" et
+      saisissez l'adresse stephane.sense@outlook.fr : c'est cette adresse
+      qui RECEVRA les demandes de compte.
+   2. La clé d'accès vous est envoyée par e-mail. Collez-la ci-dessous.
+      (Cette clé n'est pas secrète, elle peut figurer dans le code public.)
+   Tant que la clé n'est pas renseignée, le bouton "Demander un accès"
+   affiche un message explicatif au lieu d'envoyer.
+   ========================================================================== */
+const WEB3FORMS_ACCESS_KEY = "75f905ea-f4dd-40fe-a112-6331ed92a67f";
+const ADMIN_EMAIL = "stephane.sense@outlook.fr";
+
+let PRODUITS = {};      // { id: {ref, contenant, quantite, libelle, produit_ref} }
+let INDEXED = [];        // tableau à plat pour la recherche
+let dbReady = false;
+let produitsRef = null;
+let auth = null;
+let db = null;
+let dbListenerAttached = false;
+let isAdmin = false;
+let currentUser = null;
+
+// --- Multi-établissements ---
+const LEGACY_ETAB_ID = 'etab-principal'; // identifiant utilisé pour migrer les anciennes données racine
+let currentEtabId = null;
+let isSuperAdmin = false;
+let isLocalAdmin = false;
+let attachedEtabId = null; // évite de rattacher deux fois le listener produits
+let sessionPrelevements = []; // journal des prélèvements validés durant la session en cours
+
+const elLibelle   = document.getElementById('q-libelle');
+const elProduit   = document.getElementById('q-produit');
+const elResults   = document.getElementById('results');
+const elCount     = document.getElementById('count-badge');
+const elRaz       = document.getElementById('raz');
+const elBtnFinPrelevement    = document.getElementById('btn-fin-prelevement');
+const elFinPrelevementPanel  = document.getElementById('fin-prelevement-panel');
+const elFinPrelevementSummary= document.getElementById('fin-prelevement-summary');
+const elFinPrelevementEmail  = document.getElementById('fin-prelevement-email');
+const elBtnEnvoyerRecap      = document.getElementById('btn-envoyer-recap');
+const elFinPrelevementMsg    = document.getElementById('fin-prelevement-msg');
+const elStatusDot = document.getElementById('status-dot');
+const elStatusTxt = document.getElementById('status-text');
+const elBtnImport = document.getElementById('btn-import');
+const elFileImport = document.getElementById('file-import');
+const elImportMsg  = document.getElementById('import-msg');
+const elAdminZone    = document.getElementById('admin-zone');
+const elAdminDenied  = document.getElementById('admin-denied');
+const elAdminAllowed = document.getElementById('admin-allowed');
+// Rattachement d'utilisateur par un admin local (scopé à son propre établissement)
+const elLocalUserAttach     = document.getElementById('local-user-attach');
+const elLocalAttachEtabName = document.getElementById('local-attach-etab-name');
+const elLocalCreateEmail    = document.getElementById('local-create-email');
+const elLocalCreateIsAdmin  = document.getElementById('local-create-is-admin');
+const elBtnLocalCreateUser  = document.getElementById('btn-local-create-user');
+const elLocalCreateMsg      = document.getElementById('local-create-msg');
+const elLocalAttachUid      = document.getElementById('local-attach-uid');
+const elLocalAttachIsAdmin  = document.getElementById('local-attach-is-admin');
+const elBtnLocalAttachUser  = document.getElementById('btn-local-attach-user');
+const elLocalAttachMsg      = document.getElementById('local-attach-msg');
+const elLocalDemandesBlock  = document.getElementById('local-demandes-block');
+const elLocalDemandesList   = document.getElementById('local-demandes-list');
+const elSuperDemandesList   = document.getElementById('super-demandes-list');
+// Établissement
+const elEtabLine      = document.getElementById('etab-line');
+const elEtabNameValue = document.getElementById('etab-name-value');
+const elNotAttachedOverlay = document.getElementById('not-attached-overlay');
+const elBtnLogoutNotAttached = document.getElementById('btn-logout-notattached');
+// Super-administration
+const elSuperadminZone   = document.getElementById('superadmin-zone');
+const elEtabPending      = document.getElementById('etab-pending');
+const elNewEtabNom       = document.getElementById('new-etab-nom');
+const elBtnCreateEtab    = document.getElementById('btn-create-etab');
+const elCreateEtabMsg    = document.getElementById('create-etab-msg');
+const elEtabList         = document.getElementById('etab-list');
+const elAttachUid        = document.getElementById('attach-uid');
+const elAttachEtabSelect = document.getElementById('attach-etab-select');
+const elAttachIsAdmin    = document.getElementById('attach-is-admin');
+const elBtnAttachUser    = document.getElementById('btn-attach-user');
+const elAttachMsg        = document.getElementById('attach-msg');
+const elCreateEmail      = document.getElementById('create-email');
+const elCreateEtabSelect = document.getElementById('create-etab-select');
+const elCreateIsAdmin    = document.getElementById('create-is-admin');
+const elBtnCreateUser    = document.getElementById('btn-create-user');
+const elCreateUserMsg    = document.getElementById('create-user-msg');
+const elMigrationBlock   = document.getElementById('migration-block');
+const elBtnMigrate       = document.getElementById('btn-migrate');
+const elMigrateMsg       = document.getElementById('migrate-msg');
+// Connexion
+const elLoginOverlay = document.getElementById('login-overlay');
+const elLoginEmail   = document.getElementById('login-email');
+const elLoginPass    = document.getElementById('login-password');
+const elBtnLogin     = document.getElementById('btn-login');
+const elLoginMsg     = document.getElementById('login-msg');
+const elBtnForgot    = document.getElementById('btn-forgot');
+const elUserBar      = document.getElementById('user-bar');
+const elUserEmail    = document.getElementById('user-email');
+const elBtnLogout    = document.getElementById('btn-logout');
+// Demande de compte
+const elLoginPanel   = document.getElementById('login-panel');
+const elRequestPanel = document.getElementById('request-panel');
+const elBtnShowReq   = document.getElementById('btn-show-request');
+const elBtnBackLogin = document.getElementById('btn-back-login');
+const elBtnSendReq   = document.getElementById('btn-send-request');
+const elReqName      = document.getElementById('req-name');
+const elReqEmail     = document.getElementById('req-email');
+const elReqEtab      = document.getElementById('req-etab');
+const elReqMotif     = document.getElementById('req-motif');
+const elRequestMsg   = document.getElementById('request-msg');
+
+function normalize(s){
+  return (s||'')
+    .toString()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g,'')
+    .toLowerCase();
+}
+
+function escapeHtml(s){
+  return (s||'').toString()
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// Découpe une saisie en "mots" : l'espace ET l'astérisque servent de
+// caractère générique (ex. "SALEM*18" ou "SALEM 18" -> ["salem","18"]).
+function tokenize(term){
+  return normalize(term).split(/[\s*]+/).filter(Boolean);
+}
+
+// Vrai si tous les mots apparaissent dans le texte, DANS L'ORDRE
+// (chacun après le précédent), avec n'importe quoi entre eux.
+function matchTokens(fieldNorm, term){
+  const tokens = tokenize(term);
+  if(tokens.length === 0) return true;
+  let pos = 0;
+  for(const t of tokens){
+    const idx = fieldNorm.indexOf(t, pos);
+    if(idx === -1) return false;
+    pos = idx + t.length;
+  }
+  return true;
+}
+
+// Surligne chaque mot de la recherche dans le texte, dans l'ordre.
+function highlight(text, term){
+  const tokens = tokenize(term);
+  if(tokens.length === 0) return escapeHtml(text);
+  const n = normalize(text);
+  const ranges = [];
+  let pos = 0;
+  for(const t of tokens){
+    const idx = n.indexOf(t, pos);
+    if(idx === -1) continue;
+    ranges.push([idx, t.length]);
+    pos = idx + t.length;
+  }
+  if(ranges.length === 0) return escapeHtml(text);
+  let out = '';
+  let cursor = 0;
+  for(const [start, len] of ranges){
+    if(start < cursor) continue;
+    out += escapeHtml(text.slice(cursor, start));
+    out += '<mark>' + escapeHtml(text.slice(start, start + len)) + '</mark>';
+    cursor = start + len;
+  }
+  out += escapeHtml(text.slice(cursor));
+  return out;
+}
+
+function rebuildIndex(){
+  INDEXED = Object.keys(PRODUITS).map(id=>{
+    const r = PRODUITS[id];
+    return {
+      id: id,
+      ref: r.ref || '',
+      malle: r.contenant || '',
+      quantite: (typeof r.quantite === 'number') ? r.quantite : parseFloat(r.quantite) || 0,
+      libelle: r.libelle || '',
+      produit_ref: r.produit_ref || '',
+      _libelle_n: normalize(r.libelle),
+      _produit_n: normalize(r.produit_ref)
+    };
+  });
+}
+
+/* ---- État de navigation : liste des produits <-> détail d'un produit ---- */
+let currentView = 'list';     // 'list' | 'detail'
+let selectedKey = null;        // clé du produit sélectionné
+
+function produitKey(r){
+  return r.ref ? ('ref:' + r.ref) : ('lib:' + r.libelle + '|' + r.produit_ref);
+}
+
+// Calcule les produits correspondant à la recherche, regroupés par produit.
+function computeGroups(){
+  const qL = elLibelle.value.trim();
+  const qP = elProduit.value.trim();
+
+  if(!qL && !qP) return { qL, qP, produits: null };
+
+  const matches = INDEXED.filter(r=>{
+    const okL = qL ? matchTokens(r._libelle_n, qL) : true;
+    const okP = qP ? matchTokens(r._produit_n, qP) : true;
+    if(qL && qP) return okL && okP;
+    if(qL) return okL;
+    if(qP) return okP;
+    return false;
+  });
+
+  const byProduit = {};
+  matches.forEach(r=>{
+    const key = produitKey(r);
+    if(!byProduit[key]){
+      byProduit[key] = {
+        key: key,
+        ref: r.ref,
+        libelle: r.libelle,
+        produit_ref: r.produit_ref,
+        malles: []
+      };
+    }
+    byProduit[key].malles.push(r);
+  });
+
+  const produits = Object.values(byProduit).sort((a,b)=>
+    a.libelle.localeCompare(b.libelle,'fr'));
+  return { qL, qP, produits };
+}
+
+// Point d'entrée unique d'affichage : décide liste ou détail selon l'état.
+function render(){
+  const { qL, qP, produits } = computeGroups();
+
+  if(produits === null){
+    currentView = 'list';
+    selectedKey = null;
+    elResults.innerHTML = '<div class="hint">Saisissez un ou plusieurs mots dans l\'un des deux champs pour lancer la recherche.<br><span style="font-size:12.5px;">Astuce : l\'espace ou <b>*</b> agit comme joker — ex. <i>SALEM 18</i> ou <i>SALEM*18</i>.</span></div>';
+    elCount.innerHTML = '';
+    return;
+  }
+
+  if(produits.length === 0){
+    currentView = 'list';
+    selectedKey = null;
+    elResults.innerHTML = '<div class="empty">Aucun produit trouvé.<br><b>Vérifiez l\'orthographe</b> ou essayez un terme plus court.<br>' +
+      '<span style="font-size:12.5px;">Astuce : utilisez l\'espace ou <b>*</b> comme joker, ex. <i>SALEM 18</i> ou <i>SALEM*18</i>.</span></div>';
+    elCount.innerHTML = '';
+    return;
+  }
+
+  // Si on est en vue détail mais que le produit sélectionné n'existe plus
+  // dans les résultats courants, on retombe sur la liste.
+  if(currentView === 'detail'){
+    const sel = produits.find(p => p.key === selectedKey);
+    if(sel){ renderDetail(sel, qL, qP); return; }
+    currentView = 'list';
+    selectedKey = null;
+  }
+
+  renderList(produits, qL, qP);
+}
+
+// ÉTAPE 1 : liste des produits (cliquables).
+function renderList(produits, qL, qP){
+  elCount.innerHTML = '<b>' + produits.length + '</b> produit' + (produits.length>1?'s':'') + ' trouvé' + (produits.length>1?'s':'');
+
+  let html = '<div class="list-hint">Sélectionnez un produit pour voir les malles et les quantités.</div>';
+  produits.forEach(p=>{
+    const nb = p.malles.length;
+    html += '<button class="produit-item" data-action="select" data-key="' + escapeHtml(p.key) + '">';
+    html += '<div class="produit-item-main">';
+    html += '<div class="produit-libelle">' + highlight(p.libelle, qL) + '</div>';
+    html += '<div class="produit-ref">' + highlight(p.produit_ref, qP) + '</div>';
+    if(p.ref){
+      html += '<div class="produit-refcat">Réf. catalogue : ' + escapeHtml(p.ref) + '</div>';
+    }
+    html += '</div>';
+    html += '<div class="produit-item-side"><span class="malle-count">' + nb + ' malle' + (nb>1?'s':'') + '</span><span class="chevron">›</span></div>';
+    html += '</button>';
+  });
+  elResults.innerHTML = html;
+}
+
+// ÉTAPE 2 : détail d'un produit -> liste de ses malles + prélèvement.
+function renderDetail(p, qL, qP){
+  const malles = p.malles.slice().sort((a,b)=>a.malle.localeCompare(b.malle,'fr'));
+
+  elCount.innerHTML = '';
+
+  let html = '<button class="btn-back" data-action="back">‹ Retour à la liste des produits</button>';
+  html += '<div class="produit-card">';
+  html += '<div class="produit-libelle">' + highlight(p.libelle, qL) + '</div>';
+  html += '<div class="produit-ref">' + highlight(p.produit_ref, qP) + '</div>';
+  if(p.ref){
+    html += '<div class="produit-refcat">Réf. catalogue : ' + escapeHtml(p.ref) + '</div>';
+  }
+  html += '<div class="malles-label">Malle' + (malles.length>1?'s':'') + ' où se trouve ce produit (' + malles.length + ')</div>';
+  html += '<ul class="items">';
+  malles.forEach(it=>{
+    const zeroClass = it.quantite <= 0 ? ' zero' : '';
+    html += '<li data-id="' + it.id + '">';
+    html += '<div class="malle-line"><span class="malle-chip">' + escapeHtml(it.malle) + '</span>';
+    html += '<span class="item-qte' + zeroClass + '" data-qte-for="' + it.id + '">Qté disponible : ' + it.quantite + '</span></div>';
+    html += '<div class="prelevement-row">';
+    html += '<label for="prel-' + it.id + '">Quantité prélevée</label>';
+    html += '<input type="number" min="0" step="1" id="prel-' + it.id + '" placeholder="0">';
+    html += '<button class="btn-valider" data-action="valider" data-id="' + it.id + '">Valider</button>';
+    html += '</div>';
+    html += '<div class="row-msg" id="msg-' + it.id + '"></div>';
+    html += '</li>';
+  });
+  html += '</ul></div>';
+  elResults.innerHTML = html;
+}
+
+function setStatus(mode){
+  elStatusDot.className = 'status-dot ' + mode;
+  if(mode === 'online') elStatusTxt.textContent = 'Connecté · synchronisation en temps réel';
+  else if(mode === 'offline') elStatusTxt.textContent = 'Hors ligne — vérifiez la connexion / la configuration Firebase';
+  else elStatusTxt.textContent = 'Connexion…';
+}
+
+function setInputsEnabled(enabled){
+  elLibelle.disabled = !enabled;
+  elProduit.disabled = !enabled;
+  elRaz.disabled = !enabled;
+  elBtnFinPrelevement.disabled = !enabled;
+}
+
+async function seedFromJsonIfEmpty(){
+  // N'amorce qu'un seul établissement historique depuis psm.json : les
+  // nouveaux établissements démarrent vides et se peuplent via import xlsx.
+  if(currentEtabId !== LEGACY_ETAB_ID) return;
+  const snap = await produitsRef.once('value');
+  if(snap.exists()) return;
+  const resp = await fetch(DATA_URL, { cache: 'no-store' });
+  if(!resp.ok) throw new Error('psm.json introuvable pour amorcer la base (HTTP ' + resp.status + ')');
+  const seed = await resp.json();
+  const obj = {};
+  seed.forEach(r=>{
+    obj[r.id] = {
+      ref: r.ref || '',
+      contenant: r.contenant || '',
+      quantite: r.quantite,
+      libelle: r.libelle || '',
+      produit_ref: r.produit_ref || ''
+    };
+  });
+  await produitsRef.set(obj);
+}
+
+function initFirebase(){
+  try{
+    firebase.initializeApp(FIREBASE_CONFIG);
+  }catch(e){
+    showLoginError('Configuration Firebase invalide. Vérifiez FIREBASE_CONFIG dans index.html. (' + e.message + ')');
+    setStatus('offline');
+    return;
+  }
+
+  auth = firebase.auth();
+  db = firebase.database();
+
+  // Réagit à l'état de connexion : connecté -> application ; déconnecté -> écran de login.
+  auth.onAuthStateChanged(user=>{
+    if(user && !user.isAnonymous){
+      currentUser = user;
+      showApp(user);
+      resolveEtablissement(user).catch(err=>{
+        console.error(err);
+        elResults.innerHTML = '<div class="error"><b>Impossible de déterminer votre établissement.</b><br>' +
+          '<span style="font-size:12px;opacity:.8;">Détail : ' + escapeHtml(err.message) + '</span></div>';
+      });
+    }else if(!user){
+      currentUser = null;
+      isAdmin = false;
+      isSuperAdmin = false;
+      isLocalAdmin = false;
+      currentEtabId = null;
+      attachedEtabId = null;
+      showLogin();
+    }
+    // Sinon (session anonyme utilisée pour une demande d'accès en cours) :
+    // on ne touche à rien, l'écran de demande reste affiché tel quel.
+  });
+}
+
+function attachDatabase(etabId){
+  if(attachedEtabId === etabId) return;
+  attachedEtabId = etabId;
+  produitsRef = db.ref('etablissements/' + etabId + '/produits');
+
+  if(!dbListenerAttached){
+    dbListenerAttached = true;
+    db.ref('.info/connected').on('value', snap=>{
+      setStatus(snap.val() === true ? 'online' : 'offline');
+    });
+  }
+
+  seedFromJsonIfEmpty().catch(err=>{ console.error(err); });
+
+  produitsRef.on('value', snap=>{
+    PRODUITS = snap.val() || {};
+    rebuildIndex();
+    dbReady = true;
+    setInputsEnabled(true);
+    render();
+  }, err=>{
+    console.error(err);
+    elResults.innerHTML = '<div class="error"><b>Connexion à la base partagée impossible.</b><br>' +
+      'Vérifiez les règles de sécurité de la Realtime Database (lecture/écriture pour les utilisateurs authentifiés).<br>' +
+      '<span style="font-size:12px;opacity:.8;">Détail : ' + escapeHtml(err.message) + '</span></div>';
+  });
+}
+
+// Détermine le rôle (super-admin / admin local) et l'établissement rattaché
+// à l'utilisateur connecté, puis attache la base de données correspondante.
+async function resolveEtablissement(user){
+  isSuperAdmin = false;
+  try{
+    const superSnap = await db.ref('superadmins/' + user.uid).once('value');
+    isSuperAdmin = superSnap.exists() && superSnap.val() !== false;
+  }catch(e){ isSuperAdmin = false; }
+
+  if(isSuperAdmin){
+    elSuperadminZone.style.display = 'block';
+    loadEtablissementsList();
+    checkLegacyData();
+    loadSuperDemandes();
+  }else{
+    elSuperadminZone.style.display = 'none';
+  }
+
+  let etabId = null;
+  try{
+    const uSnap = await db.ref('users/' + user.uid + '/etablissementId').once('value');
+    etabId = uSnap.val() || null;
+  }catch(e){ etabId = null; }
+
+  if(!etabId){
+    if(isSuperAdmin){
+      // Le super-admin peut gérer les établissements même sans y être lui-même rattaché.
+      currentEtabId = null;
+      elEtabLine.style.display = 'none';
+      elEtabPending.style.display = 'flex';
+      elAdminZone.style.display = 'none';
+      elLocalUserAttach.style.display = 'none';
+      elLocalDemandesBlock.style.display = 'none';
+      setInputsEnabled(false);
+      elResults.innerHTML = '<div class="hint">Rattachez votre compte à un établissement dans le panneau « Super-administration » ci-dessous pour accéder à la recherche.</div>';
+      elCount.innerHTML = '';
+    }else{
+      showNotAttached();
+    }
+    return;
+  }
+
+  currentEtabId = etabId;
+  elEtabPending.style.display = 'none';
+
+  try{
+    const nomSnap = await db.ref('etablissements/' + etabId + '/nom').once('value');
+    elEtabNameValue.textContent = nomSnap.val() || etabId;
+    elEtabLine.style.display = 'block';
+  }catch(e){ /* affichage non bloquant */ }
+
+  let isLocal = false;
+  try{
+    const localAdminSnap = await db.ref('etablissements/' + etabId + '/admins/' + user.uid).once('value');
+    isLocal = localAdminSnap.exists() && localAdminSnap.val() !== false;
+  }catch(e){ isLocal = false; }
+  isLocalAdmin = isLocal;
+  isAdmin = isSuperAdmin || isLocalAdmin;
+
+  elAdminZone.style.display = 'block';
+  elAdminAllowed.style.display = isAdmin ? 'flex' : 'none';
+  elAdminDenied.style.display  = isAdmin ? 'none' : 'flex';
+
+  if(isAdmin){
+    elLocalUserAttach.style.display = 'flex';
+    elLocalAttachEtabName.textContent = elEtabNameValue.textContent || etabId;
+    elLocalDemandesBlock.style.display = 'flex';
+    loadLocalDemandes(etabId);
+  }else{
+    elLocalUserAttach.style.display = 'none';
+    elLocalDemandesBlock.style.display = 'none';
+  }
+
+  attachDatabase(etabId);
+}
+
+function slugify(s){
+  const n = normalize(s).replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'');
+  return n.slice(0,40) || 'etab';
+}
+
+async function loadEtablissementsList(){
+  try{
+    const snap = await db.ref('etablissements').once('value');
+    const val = snap.val() || {};
+    const ids = Object.keys(val).sort();
+    let listHtml = '';
+    elAttachEtabSelect.innerHTML = '';
+    elCreateEtabSelect.innerHTML = '';
+    ids.forEach(id=>{
+      const entry = val[id] || {};
+      const nom = entry.nom || id;
+      const nbAdmins = entry.admins ? Object.keys(entry.admins).length : 0;
+      const nbProduits = entry.produits ? Object.keys(entry.produits).length : 0;
+      listHtml += '<div style="padding:6px 0;border-top:1px dashed var(--line);">' +
+        '<b>' + escapeHtml(nom) + '</b> <span style="color:var(--muted);">(' + escapeHtml(id) + ')</span><br>' +
+        '<span style="color:var(--muted);font-size:12px;">' + nbProduits + ' produit(s) &middot; ' + nbAdmins + ' admin(s) local(aux)</span></div>';
+      const opt = document.createElement('option');
+      opt.value = id;
+      opt.textContent = nom + ' (' + id + ')';
+      elAttachEtabSelect.appendChild(opt);
+      const opt2 = opt.cloneNode(true);
+      elCreateEtabSelect.appendChild(opt2);
+    });
+    elEtabList.innerHTML = listHtml || '<span style="color:var(--muted);">Aucun établissement pour le moment.</span>';
+  }catch(err){
+    elEtabList.textContent = 'Erreur de chargement : ' + err.message;
+  }
+}
+
+async function createEtablissement(){
+  const nom = (elNewEtabNom.value || '').trim();
+  elCreateEtabMsg.className = 'admin-msg';
+  elCreateEtabMsg.textContent = '';
+  if(!nom){
+    elCreateEtabMsg.className = 'admin-msg err';
+    elCreateEtabMsg.textContent = 'Indiquez un nom d\'établissement.';
+    return;
+  }
+  elBtnCreateEtab.disabled = true;
+  elCreateEtabMsg.textContent = 'Création…';
+  try{
+    let id = slugify(nom);
+    const existing = await db.ref('etablissements/' + id + '/nom').once('value');
+    if(existing.exists()){
+      id = id + '-' + Date.now().toString(36).slice(-4);
+    }
+    await db.ref('etablissements/' + id + '/nom').set(nom);
+    elCreateEtabMsg.className = 'admin-msg ok';
+    elCreateEtabMsg.textContent = 'Établissement créé (identifiant : ' + id + ').';
+    elNewEtabNom.value = '';
+    loadEtablissementsList();
+  }catch(err){
+    elCreateEtabMsg.className = 'admin-msg err';
+    elCreateEtabMsg.textContent = 'Erreur : ' + err.message;
+  }finally{
+    elBtnCreateEtab.disabled = false;
+  }
+}
+
+async function attachUserToEtab(){
+  const uid = (elAttachUid.value || '').trim();
+  const etabId = elAttachEtabSelect.value;
+  const asAdmin = elAttachIsAdmin.checked;
+  elAttachMsg.className = 'admin-msg';
+  elAttachMsg.textContent = '';
+  if(!uid || uid.length < 10){
+    elAttachMsg.className = 'admin-msg err';
+    elAttachMsg.textContent = 'Indiquez un UID valide (Console Firebase > Authentication).';
+    return;
+  }
+  if(!etabId){
+    elAttachMsg.className = 'admin-msg err';
+    elAttachMsg.textContent = 'Choisissez un établissement (créez-en un si la liste est vide).';
+    return;
+  }
+  elBtnAttachUser.disabled = true;
+  elAttachMsg.textContent = 'Rattachement…';
+  try{
+    await db.ref('users/' + uid + '/etablissementId').set(etabId);
+    if(asAdmin){
+      await db.ref('etablissements/' + etabId + '/admins/' + uid).set(true);
+    }
+    elAttachMsg.className = 'admin-msg ok';
+    elAttachMsg.textContent = 'Utilisateur rattaché à ' + etabId + (asAdmin ? ' (admin local)' : '') + '.';
+    elAttachUid.value = '';
+    elAttachIsAdmin.checked = false;
+    loadEtablissementsList();
+  }catch(err){
+    elAttachMsg.className = 'admin-msg err';
+    elAttachMsg.textContent = 'Erreur : ' + err.message;
+  }finally{
+    elBtnAttachUser.disabled = false;
+  }
+}
+
+// Détecte d'anciennes données à la racine de la base (avant multi-établissements).
+async function checkLegacyData(){
+  try{
+    const snap = await db.ref('produits').once('value');
+    elMigrationBlock.style.display = snap.exists() ? 'block' : 'none';
+  }catch(e){ /* pas de droits ou pas de données, on ignore */ }
+}
+
+async function migrateLegacyData(){
+  elMigrateMsg.className = 'admin-msg';
+  elMigrateMsg.textContent = 'Migration en cours…';
+  elBtnMigrate.disabled = true;
+  try{
+    const prodSnap = await db.ref('produits').once('value');
+    const produits = prodSnap.val();
+    if(!produits){
+      elMigrateMsg.className = 'admin-msg err';
+      elMigrateMsg.textContent = 'Aucune donnée /produits trouvée à la racine.';
+      return;
+    }
+    const adminsSnap = await db.ref('admins').once('value');
+    const admins = adminsSnap.val();
+
+    const existingNomSnap = await db.ref('etablissements/' + LEGACY_ETAB_ID + '/nom').once('value');
+    if(!existingNomSnap.exists()){
+      await db.ref('etablissements/' + LEGACY_ETAB_ID + '/nom').set('Établissement historique');
+    }
+    await db.ref('etablissements/' + LEGACY_ETAB_ID + '/produits').set(produits);
+
+    if(admins){
+      await db.ref('etablissements/' + LEGACY_ETAB_ID + '/admins').set(admins);
+      const uids = Object.keys(admins);
+      for(const uid of uids){
+        await db.ref('users/' + uid + '/etablissementId').set(LEGACY_ETAB_ID);
+      }
+    }
+    if(currentUser){
+      await db.ref('users/' + currentUser.uid + '/etablissementId').set(LEGACY_ETAB_ID);
+    }
+
+    elMigrateMsg.className = 'admin-msg ok';
+    elMigrateMsg.textContent = 'Migration terminée vers "' + LEGACY_ETAB_ID + '". Rechargez la page. ' +
+      'Une fois vérifié, vous pouvez supprimer manuellement les nœuds /produits et /admins à la racine (Console Firebase).';
+    loadEtablissementsList();
+  }catch(err){
+    elMigrateMsg.className = 'admin-msg err';
+    elMigrateMsg.textContent = 'Erreur : ' + err.message;
+  }finally{
+    elBtnMigrate.disabled = false;
+  }
+}
+
+elBtnCreateEtab.addEventListener('click', createEtablissement);
+elBtnAttachUser.addEventListener('click', attachUserToEtab);
+elBtnMigrate.addEventListener('click', migrateLegacyData);
+
+// Rattache un utilisateur à l'établissement de l'admin connecté (pas de choix
+// d'établissement : il est automatiquement celui de la personne qui rattache).
+async function attachUserToMyEtab(){
+  const uid = (elLocalAttachUid.value || '').trim();
+  const asAdmin = elLocalAttachIsAdmin.checked;
+  elLocalAttachMsg.className = 'admin-msg';
+  elLocalAttachMsg.textContent = '';
+  if(!currentEtabId){
+    elLocalAttachMsg.className = 'admin-msg err';
+    elLocalAttachMsg.textContent = 'Aucun établissement actif sur ce compte.';
+    return;
+  }
+  if(!uid || uid.length < 10){
+    elLocalAttachMsg.className = 'admin-msg err';
+    elLocalAttachMsg.textContent = 'Indiquez un UID valide (Console Firebase > Authentication).';
+    return;
+  }
+  elBtnLocalAttachUser.disabled = true;
+  elLocalAttachMsg.textContent = 'Rattachement…';
+  try{
+    await db.ref('users/' + uid + '/etablissementId').set(currentEtabId);
+    if(asAdmin){
+      await db.ref('etablissements/' + currentEtabId + '/admins/' + uid).set(true);
+    }
+    elLocalAttachMsg.className = 'admin-msg ok';
+    elLocalAttachMsg.textContent = 'Utilisateur rattaché à ' + (elEtabNameValue.textContent || currentEtabId) + (asAdmin ? ' (administrateur)' : '') + '.';
+    elLocalAttachUid.value = '';
+    elLocalAttachIsAdmin.checked = false;
+  }catch(err){
+    elLocalAttachMsg.className = 'admin-msg err';
+    elLocalAttachMsg.textContent = 'Erreur : ' + err.message;
+  }finally{
+    elBtnLocalAttachUser.disabled = false;
+  }
+}
+elBtnLocalAttachUser.addEventListener('click', attachUserToMyEtab);
+
+// --- Création de compte utilisateur sans quitter la session admin en cours ---
+// Une "app" Firebase secondaire isole la session du compte fraîchement créé :
+// createUserWithEmailAndPassword connecte automatiquement l'appelant au nouveau
+// compte sur l'instance utilisée ; en le faisant sur une app à part, la session
+// de l'admin (sur l'app principale) n'est jamais affectée.
+function getSecondaryAuth(){
+  let secApp;
+  try{
+    secApp = firebase.app('SecondaryAdminApp');
+  }catch(e){
+    secApp = firebase.initializeApp(FIREBASE_CONFIG, 'SecondaryAdminApp');
+  }
+  return secApp.auth();
+}
+
+function randomTempPassword(){
+  return 'Tmp-' + Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2) + '!9';
+}
+
+function isValidEmail(v){
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
+}
+
+// Crée le compte Firebase Auth, le rattache à l'établissement, envoie un e-mail
+// de définition de mot de passe, puis nettoie la session secondaire.
+async function createAndAttachUser(email, etabId, asAdmin, msgEl, btnEl){
+  msgEl.className = 'admin-msg';
+  msgEl.textContent = '';
+  email = (email || '').trim();
+  if(!isValidEmail(email)){
+    msgEl.className = 'admin-msg err';
+    msgEl.textContent = 'Indiquez un e-mail valide.';
+    return;
+  }
+  if(!etabId){
+    msgEl.className = 'admin-msg err';
+    msgEl.textContent = 'Aucun établissement cible.';
+    return;
+  }
+  btnEl.disabled = true;
+  msgEl.textContent = 'Création du compte…';
+  const secAuth = getSecondaryAuth();
+  try{
+    const cred = await secAuth.createUserWithEmailAndPassword(email, randomTempPassword());
+    const uid = cred.user.uid;
+    await db.ref('users/' + uid + '/etablissementId').set(etabId);
+    if(asAdmin){
+      await db.ref('etablissements/' + etabId + '/admins/' + uid).set(true);
+    }
+    try{ await secAuth.sendPasswordResetEmail(email); }catch(e){ /* non bloquant */ }
+    try{ await secAuth.signOut(); }catch(e){ /* non bloquant */ }
+    msgEl.className = 'admin-msg ok';
+    msgEl.textContent = 'Compte créé et rattaché. Un e-mail a été envoyé à ' + email + ' pour définir son mot de passe.';
+    loadEtablissementsList();
+  }catch(err){
+    msgEl.className = 'admin-msg err';
+    if(err.code === 'auth/email-already-in-use'){
+      msgEl.textContent = 'Un compte existe déjà avec cet e-mail. Utilisez le rattachement par UID ci-dessous à la place.';
+    }else{
+      msgEl.textContent = 'Erreur : ' + err.message;
+    }
+  }finally{
+    btnEl.disabled = false;
+  }
+}
+
+elBtnLocalCreateUser.addEventListener('click', ()=>{
+  createAndAttachUser(elLocalCreateEmail.value, currentEtabId, elLocalCreateIsAdmin.checked, elLocalCreateMsg, elBtnLocalCreateUser)
+    .then(()=>{
+      if(elLocalCreateMsg.className.indexOf('ok') !== -1){
+        elLocalCreateEmail.value = '';
+        elLocalCreateIsAdmin.checked = false;
+      }
+    });
+});
+
+elBtnCreateUser.addEventListener('click', ()=>{
+  const etabId = elCreateEtabSelect.value;
+  createAndAttachUser(elCreateEmail.value, etabId, elCreateIsAdmin.checked, elCreateUserMsg, elBtnCreateUser)
+    .then(()=>{
+      if(elCreateUserMsg.className.indexOf('ok') !== -1){
+        elCreateEmail.value = '';
+        elCreateIsAdmin.checked = false;
+      }
+    });
+});
+
+// --- Demandes d'inscription : chargement, affichage, approbation, refus ---
+
+async function loadLocalDemandes(etabId){
+  try{
+    const snap = await db.ref('demandes').orderByChild('etablissementId').equalTo(etabId).once('value');
+    renderDemandesList(elLocalDemandesList, snap.val() || {});
+  }catch(err){
+    elLocalDemandesList.textContent = 'Erreur de chargement : ' + err.message;
+  }
+}
+
+async function loadSuperDemandes(){
+  try{
+    const snap = await db.ref('demandes').once('value');
+    renderDemandesList(elSuperDemandesList, snap.val() || {});
+  }catch(err){
+    elSuperDemandesList.textContent = 'Erreur de chargement : ' + err.message;
+  }
+}
+
+function renderDemandesList(container, demandesObj){
+  const ids = Object.keys(demandesObj).filter(id => (demandesObj[id].statut || 'attente') === 'attente');
+  if(ids.length === 0){
+    container.innerHTML = '<span style="color:var(--muted);font-size:12.5px;">Aucune demande en attente.</span>';
+    return;
+  }
+  ids.sort((a,b)=> (demandesObj[a].dateCreation||0) - (demandesObj[b].dateCreation||0));
+  let html = '';
+  ids.forEach(id=>{
+    const d = demandesObj[id];
+    html += '<div style="padding:8px 0;border-top:1px dashed var(--line);">' +
+      '<b>' + escapeHtml(d.nom||'') + '</b> — ' + escapeHtml(d.email||'') + '<br>' +
+      '<span style="font-size:12px;color:var(--muted);">Établissement demandé : ' + escapeHtml(d.etablissementNom || d.etablissementId || '') +
+      (d.motif ? ' &middot; ' + escapeHtml(d.motif) : '') + '</span>' +
+      '<div style="margin-top:6px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">' +
+      '<label style="font-size:12.5px;display:flex;align-items:center;gap:4px;"><input type="checkbox" class="demande-admin-flag" data-id="' + id + '"> Administrateur</label>' +
+      '<button class="btn-secondary demande-approve" data-id="' + id + '" data-etab="' + escapeHtml(d.etablissementId||'') + '" data-email="' + escapeHtml(d.email||'') + '" type="button">Approuver</button>' +
+      '<button class="btn-secondary demande-refuse" data-id="' + id + '" data-email="' + escapeHtml(d.email||'') + '" data-nom="' + escapeHtml(d.nom||'') + '" type="button">Refuser</button>' +
+      '</div>' +
+      '<span class="admin-msg" data-msg-for="' + id + '"></span>' +
+      '</div>';
+  });
+  container.innerHTML = html;
+}
+
+async function handleApproveDemande(btn){
+  const id = btn.getAttribute('data-id');
+  const etabId = btn.getAttribute('data-etab');
+  const email = btn.getAttribute('data-email');
+  const container = btn.closest('div[style*="border-top"]');
+  const checkbox = container ? container.querySelector('.demande-admin-flag') : null;
+  const msgEl = container ? container.querySelector('[data-msg-for="' + id + '"]') : null;
+  const asAdmin = checkbox ? checkbox.checked : false;
+
+  if(msgEl){ msgEl.className = 'admin-msg'; msgEl.textContent = 'Traitement…'; }
+  btn.disabled = true;
+
+  const tempMsgEl = msgEl || { className: '', textContent: '' };
+  await createAndAttachUser(email, etabId, asAdmin, tempMsgEl, btn);
+
+  if(tempMsgEl.className.indexOf('ok') !== -1){
+    try{
+      await db.ref('demandes/' + id + '/statut').set('validee');
+      await db.ref('demandes/' + id + '/traitePar').set(currentUser.uid);
+    }catch(e){ /* le compte est créé de toute façon, la demande sera juste retraitée par erreur si on relance */ }
+    if(msgEl) msgEl.textContent = 'Compte créé et rattaché. Un e-mail a été envoyé à ' + email + ' pour définir son mot de passe.';
+    if(currentEtabId) loadLocalDemandes(currentEtabId);
+    if(isSuperAdmin) loadSuperDemandes();
+  }else{
+    btn.disabled = false;
+  }
+}
+
+async function handleRefuseDemande(btn){
+  const id = btn.getAttribute('data-id');
+  const email = btn.getAttribute('data-email');
+  const nom = btn.getAttribute('data-nom');
+  const container = btn.closest('div[style*="border-top"]');
+  const msgEl = container ? container.querySelector('[data-msg-for="' + id + '"]') : null;
+
+  btn.disabled = true;
+  try{
+    await db.ref('demandes/' + id + '/statut').set('refusee');
+    await db.ref('demandes/' + id + '/traitePar').set(currentUser.uid);
+    // Pas de backend d'envoi d'e-mail arbitraire disponible : on ouvre le
+    // client mail de l'admin, pré-rempli, pour qu'il prévienne la personne en un clic.
+    const subject = encodeURIComponent("Votre demande d'accès à l'application PSM");
+    const body = encodeURIComponent('Bonjour ' + nom + ',\n\nAprès examen, votre demande d\'accès à l\'application PSM n\'a pas été retenue.\n\nCordialement.');
+    window.open('mailto:' + email + '?subject=' + subject + '&body=' + body, '_blank');
+    if(msgEl){ msgEl.className = 'admin-msg ok'; msgEl.textContent = 'Demande refusée. Un brouillon d\'e-mail a été ouvert pour prévenir la personne.'; }
+    if(currentEtabId) loadLocalDemandes(currentEtabId);
+    if(isSuperAdmin) loadSuperDemandes();
+  }catch(err){
+    if(msgEl){ msgEl.className = 'admin-msg err'; msgEl.textContent = 'Erreur : ' + err.message; }
+    btn.disabled = false;
+  }
+}
+
+elLocalDemandesList.addEventListener('click', ev=>{
+  const approveBtn = ev.target.closest('.demande-approve');
+  if(approveBtn){ handleApproveDemande(approveBtn); return; }
+  const refuseBtn = ev.target.closest('.demande-refuse');
+  if(refuseBtn){ handleRefuseDemande(refuseBtn); return; }
+});
+elSuperDemandesList.addEventListener('click', ev=>{
+  const approveBtn = ev.target.closest('.demande-approve');
+  if(approveBtn){ handleApproveDemande(approveBtn); return; }
+  const refuseBtn = ev.target.closest('.demande-refuse');
+  if(refuseBtn){ handleRefuseDemande(refuseBtn); return; }
+});
+
+/* ---- Bascule écran connexion / application ---- */
+function showApp(user){
+  elLoginOverlay.classList.add('hidden');
+  elNotAttachedOverlay.style.display = 'none';
+  elUserBar.style.display = 'flex';
+  elUserEmail.textContent = user.email || '';
+}
+function showNotAttached(){
+  elNotAttachedOverlay.style.display = 'flex';
+  elEtabLine.style.display = 'none';
+  elAdminZone.style.display = 'none';
+  elSuperadminZone.style.display = 'none';
+  elLocalUserAttach.style.display = 'none';
+  elLocalDemandesBlock.style.display = 'none';
+  setInputsEnabled(false);
+  elResults.innerHTML = '';
+  elCount.innerHTML = '';
+}
+function showLogin(){
+  elLoginOverlay.classList.remove('hidden');
+  elNotAttachedOverlay.style.display = 'none';
+  elUserBar.style.display = 'none';
+  elAdminZone.style.display = 'none';
+  elSuperadminZone.style.display = 'none';
+  elLocalUserAttach.style.display = 'none';
+  elLocalDemandesBlock.style.display = 'none';
+  elEtabLine.style.display = 'none';
+  setInputsEnabled(false);
+  elLoginPass.value = '';
+  elLoginMsg.className = 'login-msg';
+  elLoginMsg.textContent = '';
+  if(elRequestPanel) elRequestPanel.style.display = 'none';
+  if(elLoginPanel) elLoginPanel.style.display = 'block';
+}
+elBtnLogoutNotAttached.addEventListener('click', ()=>{ if(auth) auth.signOut(); });
+function showLoginError(msg){
+  elLoginMsg.className = 'login-msg err';
+  elLoginMsg.textContent = msg;
+}
+
+/* ---- Traduction des erreurs Firebase Auth ---- */
+function authErrorFr(code){
+  switch(code){
+    case 'auth/invalid-email': return 'Adresse e-mail invalide.';
+    case 'auth/user-disabled': return 'Ce compte a été désactivé.';
+    case 'auth/user-not-found':
+    case 'auth/wrong-password':
+    case 'auth/invalid-credential':
+    case 'auth/invalid-login-credentials': return 'E-mail ou mot de passe incorrect.';
+    case 'auth/too-many-requests': return 'Trop de tentatives. Réessayez plus tard.';
+    case 'auth/network-request-failed': return 'Problème de réseau. Vérifiez votre connexion.';
+    default: return 'Échec de la connexion (' + code + ').';
+  }
+}
+
+function doLogin(){
+  const email = (elLoginEmail.value || '').trim();
+  const pass = elLoginPass.value || '';
+  if(!email || !pass){
+    showLoginError('Saisissez votre e-mail et votre mot de passe.');
+    return;
+  }
+  elBtnLogin.disabled = true;
+  elLoginMsg.className = 'login-msg';
+  elLoginMsg.textContent = 'Connexion en cours…';
+  auth.signInWithEmailAndPassword(email, pass)
+    .then(()=>{ /* onAuthStateChanged bascule l'affichage */ })
+    .catch(err=>{ showLoginError(authErrorFr(err.code)); })
+    .finally(()=>{ elBtnLogin.disabled = false; });
+}
+
+function doForgot(){
+  const email = (elLoginEmail.value || '').trim();
+  if(!email){
+    showLoginError('Saisissez d\'abord votre e-mail, puis cliquez sur « Mot de passe oublié ».');
+    return;
+  }
+  auth.sendPasswordResetEmail(email)
+    .then(()=>{
+      elLoginMsg.className = 'login-msg ok';
+      elLoginMsg.textContent = 'E-mail de réinitialisation envoyé (vérifiez vos spams).';
+    })
+    .catch(err=>{ showLoginError(authErrorFr(err.code)); });
+}
+
+elBtnLogin.addEventListener('click', doLogin);
+elLoginPass.addEventListener('keydown', e=>{ if(e.key === 'Enter') doLogin(); });
+elLoginEmail.addEventListener('keydown', e=>{ if(e.key === 'Enter') elLoginPass.focus(); });
+elBtnForgot.addEventListener('click', doForgot);
+elBtnLogout.addEventListener('click', ()=>{ if(auth) auth.signOut(); });
+
+/* ---- Demande de compte (bascule des panneaux + envoi e-mail) ---- */
+function showRequestPanel(){
+  elLoginPanel.style.display = 'none';
+  elRequestPanel.style.display = 'block';
+  elRequestMsg.className = 'login-msg';
+  elRequestMsg.textContent = '';
+}
+function showLoginPanel(){
+  elRequestPanel.style.display = 'none';
+  elLoginPanel.style.display = 'block';
+}
+elBtnShowReq.addEventListener('click', showRequestPanel);
+elBtnBackLogin.addEventListener('click', showLoginPanel);
+
+async function doRequestAccount(){
+  const name = (elReqName.value || '').trim();
+  const email = (elReqEmail.value || '').trim();
+  const etabId = (elReqEtab.value || '').trim();
+  const etabNom = etabId ? (elReqEtab.options[elReqEtab.selectedIndex].textContent || etabId) : '';
+  const motif = (elReqMotif.value || '').trim();
+
+  if(!name || !email){
+    elRequestMsg.className = 'login-msg err';
+    elRequestMsg.textContent = 'Indiquez au moins votre nom et votre e-mail.';
+    return;
+  }
+  if(!etabId){
+    elRequestMsg.className = 'login-msg err';
+    elRequestMsg.textContent = 'Sélectionnez votre établissement.';
+    return;
+  }
+  const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  if(!emailOk){
+    elRequestMsg.className = 'login-msg err';
+    elRequestMsg.textContent = 'Adresse e-mail invalide.';
+    return;
+  }
+
+  elBtnSendReq.disabled = true;
+  elRequestMsg.className = 'login-msg';
+  elRequestMsg.textContent = 'Envoi de la demande…';
+
+  try{
+    // Une session (anonyme si besoin) est nécessaire pour pouvoir écrire la
+    // demande dans la base — le demandeur n'a pas encore de compte à ce stade.
+    if(!auth.currentUser){
+      await auth.signInAnonymously();
+    }
+    const demandeRef = db.ref('demandes').push();
+    await demandeRef.set({
+      nom: name,
+      email: email,
+      etablissementId: etabId,
+      etablissementNom: etabNom,
+      motif: motif || '',
+      statut: 'attente',
+      dateCreation: firebase.database.ServerValue.TIMESTAMP
+    });
+
+    // Notification informative par e-mail (facultative si Web3Forms configuré) —
+    // l'admin local verra de toute façon la demande dans son panneau à sa connexion.
+    if(WEB3FORMS_ACCESS_KEY && !WEB3FORMS_ACCESS_KEY.startsWith('REMPLACER')){
+      const payload = {
+        access_key: WEB3FORMS_ACCESS_KEY,
+        subject: 'Demande d\'accès PSM — ' + name,
+        from_name: 'Application PSM',
+        "Nom": name,
+        "E-mail du demandeur": email,
+        "Établissement souhaité": etabNom,
+        "Service / motif": motif || '(non précisé)',
+        "message": 'Nouvelle demande d\'accès à l\'application PSM.\n\n'
+          + 'Nom : ' + name + '\n'
+          + 'E-mail : ' + email + '\n'
+          + 'Établissement souhaité : ' + etabNom + '\n'
+          + 'Service / motif : ' + (motif || '(non précisé)') + '\n\n'
+          + 'Cette demande est aussi visible et traitable directement dans l\'application, '
+          + 'par l\'administrateur local de cet établissement (ou un super-administrateur), '
+          + 'dans le panneau d\'administration après connexion.'
+      };
+      fetch('https://api.web3forms.com/submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        body: JSON.stringify(payload)
+      }).catch(()=>{ /* la demande est déjà enregistrée en base, l'e-mail n'est qu'informatif */ });
+    }
+
+    if(auth.currentUser && auth.currentUser.isAnonymous){
+      await auth.signOut();
+    }
+
+    elRequestMsg.className = 'login-msg ok';
+    elRequestMsg.textContent = 'Demande envoyée. Vous serez averti par e-mail dès que l\'administrateur de ' + etabNom + ' l\'aura traitée.';
+    elReqName.value = ''; elReqEmail.value = ''; elReqEtab.value = ''; elReqMotif.value = '';
+  }catch(err){
+    elRequestMsg.className = 'login-msg err';
+    elRequestMsg.textContent = 'Échec de l\'envoi : ' + err.message;
+  }finally{
+    elBtnSendReq.disabled = false;
+  }
+}
+elBtnSendReq.addEventListener('click', doRequestAccount);
+
+function onSearchInput(){
+  // Toute nouvelle saisie ramène à la liste des produits.
+  currentView = 'list';
+  selectedKey = null;
+  render();
+}
+elLibelle.addEventListener('input', onSearchInput);
+elProduit.addEventListener('input', onSearchInput);
+elRaz.addEventListener('click', ()=>{
+  elLibelle.value = '';
+  elProduit.value = '';
+  currentView = 'list';
+  selectedKey = null;
+  elLibelle.focus();
+  render();
+});
+
+// --- Fin de prélèvement : export Excel + PDF du journal de la session, envoi facultatif par e-mail ---
+
+function formatDateHeure(d){
+  const p = n => String(n).padStart(2,'0');
+  return p(d.getDate()) + '/' + p(d.getMonth()+1) + '/' + d.getFullYear() + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+}
+
+function buildRecapRows(){
+  return sessionPrelevements.map(e=>({
+    'Date/heure': formatDateHeure(e.date),
+    'Malle': e.malle,
+    'Libellé catalogue': e.libelle,
+    'Produit référentiel': e.produit_ref,
+    'Réf. catalogue': e.ref,
+    'Quantité prélevée': e.quantite
+  }));
+}
+
+function buildRecapWorkbookBlob(){
+  const rows = buildRecapRows();
+  const ws = XLSX.utils.json_to_sheet(rows);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Prélèvements');
+  const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+  return new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+}
+
+function buildRecapPdfBlob(){
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ orientation: 'landscape' });
+  const etabNom = elEtabNameValue.textContent || currentEtabId || '';
+  doc.setFontSize(14);
+  doc.text('Récapitulatif de prélèvement — ' + etabNom, 14, 15);
+  doc.setFontSize(10);
+  doc.text('Édité le ' + formatDateHeure(new Date()) + ' par ' + ((currentUser && currentUser.email) || ''), 14, 21);
+  doc.autoTable({
+    startY: 26,
+    head: [['Date/heure', 'Malle', 'Libellé catalogue', 'Produit référentiel', 'Réf. catalogue', 'Qté prélevée']],
+    body: sessionPrelevements.map(e=>[formatDateHeure(e.date), e.malle, e.libelle, e.produit_ref, e.ref, String(e.quantite)]),
+    styles: { fontSize: 8 }
+  });
+  return doc.output('blob');
+}
+
+function downloadBlob(blob, filename){
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url), 5000);
+}
+
+let lastRecapXlsxBlob = null;
+let lastRecapPdfBlob = null;
+
+elBtnFinPrelevement.addEventListener('click', ()=>{
+  if(sessionPrelevements.length === 0){
+    alert('Aucun prélèvement n\'a été enregistré durant cette session.');
+    return;
+  }
+  const confirmed = confirm(
+    'Clôturer la session de prélèvement ?\n\n' +
+    sessionPrelevements.length + ' ligne(s) de prélèvement vont être exportées en Excel et PDF (téléchargement), ' +
+    'puis le journal de cette session sera vidé.'
+  );
+  if(!confirmed) return;
+
+  const etabSlug = normalize(currentEtabId || 'psm').replace(/[^a-z0-9]+/g,'-');
+  const stamp = new Date().toISOString().slice(0,16).replace(/[:T]/g,'-');
+  const baseName = 'prelevements_' + etabSlug + '_' + stamp;
+
+  try{
+    lastRecapXlsxBlob = buildRecapWorkbookBlob();
+    lastRecapPdfBlob = buildRecapPdfBlob();
+    downloadBlob(lastRecapXlsxBlob, baseName + '.xlsx');
+    downloadBlob(lastRecapPdfBlob, baseName + '.pdf');
+
+    elFinPrelevementSummary.textContent = sessionPrelevements.length + ' ligne(s) exportée(s) et téléchargée(s) (Excel + PDF).';
+    elFinPrelevementPanel.style.display = 'block';
+    elFinPrelevementMsg.className = 'admin-msg';
+    elFinPrelevementMsg.textContent = '';
+    if(currentUser && currentUser.email) elFinPrelevementEmail.value = currentUser.email;
+
+    sessionPrelevements = [];
+  }catch(err){
+    alert('Erreur lors de la génération des fichiers : ' + err.message);
+  }
+});
+
+elBtnEnvoyerRecap.addEventListener('click', async ()=>{
+  const email = (elFinPrelevementEmail.value || '').trim();
+  elFinPrelevementMsg.className = 'admin-msg';
+  elFinPrelevementMsg.textContent = '';
+
+  if(!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){
+    elFinPrelevementMsg.className = 'admin-msg err';
+    elFinPrelevementMsg.textContent = 'Indiquez un e-mail valide.';
+    return;
+  }
+  if(!lastRecapXlsxBlob || !lastRecapPdfBlob){
+    elFinPrelevementMsg.className = 'admin-msg err';
+    elFinPrelevementMsg.textContent = 'Aucun récapitulatif à envoyer (générez-le d\'abord via « Fin de prélèvement »).';
+    return;
+  }
+  if(!WEB3FORMS_ACCESS_KEY || WEB3FORMS_ACCESS_KEY.startsWith('REMPLACER')){
+    elFinPrelevementMsg.className = 'admin-msg err';
+    elFinPrelevementMsg.textContent = 'Envoi non configuré (clé Web3Forms manquante).';
+    return;
+  }
+
+  elBtnEnvoyerRecap.disabled = true;
+  elFinPrelevementMsg.textContent = 'Envoi en cours…';
+
+  try{
+    const formData = new FormData();
+    formData.append('access_key', WEB3FORMS_ACCESS_KEY);
+    formData.append('subject', 'Récapitulatif de prélèvement PSM');
+    formData.append('from_name', 'Application PSM');
+    formData.append('email', email);
+    formData.append('message', 'Récapitulatif des prélèvements ci-joint (Excel et PDF).');
+    formData.append('attachment', lastRecapXlsxBlob, 'prelevements.xlsx');
+    formData.append('attachment2', lastRecapPdfBlob, 'prelevements.pdf');
+
+    const resp = await fetch('https://api.web3forms.com/submit', { method: 'POST', body: formData });
+    const data = await resp.json();
+    if(data && data.success){
+      elFinPrelevementMsg.className = 'admin-msg ok';
+      elFinPrelevementMsg.textContent = 'Récapitulatif envoyé à ' + email + '.';
+    }else{
+      elFinPrelevementMsg.className = 'admin-msg err';
+      elFinPrelevementMsg.textContent = 'Échec de l\'envoi (' + ((data && data.message) || 'vérifiez que votre compte Web3Forms accepte les pièces jointes') + '). Les fichiers restent disponibles en téléchargement ci-dessus.';
+    }
+  }catch(err){
+    elFinPrelevementMsg.className = 'admin-msg err';
+    elFinPrelevementMsg.textContent = 'Échec de l\'envoi : ' + err.message + '. Les fichiers restent disponibles en téléchargement ci-dessus.';
+  }finally{
+    elBtnEnvoyerRecap.disabled = false;
+  }
+});
+
+// Délégation d'événements : sélection d'un produit, retour, et validation prélèvement.
+elResults.addEventListener('click', (ev)=>{
+  const selectBtn = ev.target.closest('button[data-action="select"]');
+  if(selectBtn){
+    selectedKey = selectBtn.getAttribute('data-key');
+    currentView = 'detail';
+    render();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    return;
+  }
+
+  const backBtn = ev.target.closest('button[data-action="back"]');
+  if(backBtn){
+    currentView = 'list';
+    selectedKey = null;
+    render();
+    return;
+  }
+
+  const btn = ev.target.closest('button[data-action="valider"]');
+  if(!btn) return;
+  const id = btn.getAttribute('data-id');
+  const input = document.getElementById('prel-' + id);
+  const msg = document.getElementById('msg-' + id);
+  const val = parseFloat((input.value || '').replace(',', '.'));
+
+  msg.className = 'row-msg';
+  msg.textContent = '';
+
+  if(isNaN(val) || val <= 0){
+    msg.className = 'row-msg err';
+    msg.textContent = 'Saisissez une quantité prélevée valide (> 0).';
+    return;
+  }
+
+  const current = PRODUITS[id] ? (parseFloat(PRODUITS[id].quantite) || 0) : 0;
+  if(val > current){
+    msg.className = 'row-msg err';
+    msg.textContent = 'Quantité prélevée supérieure à la quantité disponible (' + current + ').';
+    return;
+  }
+
+  const produitSnapshot = PRODUITS[id] ? {
+    malle: PRODUITS[id].contenant || '',
+    libelle: PRODUITS[id].libelle || '',
+    produit_ref: PRODUITS[id].produit_ref || '',
+    ref: PRODUITS[id].ref || ''
+  } : { malle:'', libelle:'', produit_ref:'', ref:'' };
+
+  btn.disabled = true;
+  produitsRef.child(id).child('quantite').transaction(currentVal=>{
+    const base = (typeof currentVal === 'number') ? currentVal : (parseFloat(currentVal) || 0);
+    const next = base - val;
+    return next < 0 ? 0 : next;
+  }, (error, committed)=>{
+    // Le DOM a pu être reconstruit par la synchro temps réel : on re-cible par id.
+    const freshMsg = document.getElementById('msg-' + id) || msg;
+    const freshInput = document.getElementById('prel-' + id);
+    const freshBtn = document.querySelector('button[data-action="valider"][data-id="' + id + '"]');
+    if(freshBtn) freshBtn.disabled = false;
+    if(error){
+      freshMsg.className = 'row-msg err';
+      freshMsg.textContent = 'Erreur lors de la mise à jour : ' + error.message;
+      return;
+    }
+    if(committed){
+      freshMsg.className = 'row-msg ok';
+      freshMsg.textContent = 'Prélèvement enregistré ✓';
+      if(freshInput) freshInput.value = '';
+      sessionPrelevements.push({
+        date: new Date(),
+        malle: produitSnapshot.malle,
+        libelle: produitSnapshot.libelle,
+        produit_ref: produitSnapshot.produit_ref,
+        ref: produitSnapshot.ref,
+        quantite: val
+      });
+    }
+  });
+});
+
+// --- Import d'un nouveau fichier Liste_PSM.xlsx (réservé aux administrateurs) ---
+elBtnImport.addEventListener('click', ()=>{
+  if(!isAdmin) return;
+  elFileImport.click();
+});
+
+elFileImport.addEventListener('change', (ev)=>{
+  const file = ev.target.files[0];
+  if(!file) return;
+
+  if(!isAdmin){
+    elFileImport.value = '';
+    return;
+  }
+
+  if(!dbReady){
+    elImportMsg.className = 'admin-msg err';
+    elImportMsg.textContent = 'Connexion à la base non prête, réessayez dans un instant.';
+    return;
+  }
+
+  const proceed = window.confirm(
+    'Cela va remplacer les données pour TOUS les utilisateurs connectés ' +
+    '(les quantités seront réinitialisées à celles du fichier importé). Continuer ?'
+  );
+  if(!proceed){ elFileImport.value = ''; return; }
+
+  elImportMsg.className = 'admin-msg';
+  elImportMsg.textContent = 'Lecture du fichier…';
+
+  const reader = new FileReader();
+
+  reader.onerror = ()=>{
+    elImportMsg.className = 'admin-msg err';
+    elImportMsg.textContent = 'Impossible de lire le fichier sélectionné.';
+  };
+
+  reader.onload = async (e)=>{
+    try{
+      const wb = XLSX.read(e.target.result, { type: 'array' });
+      let sheetName = wb.SheetNames.find(n => n.toLowerCase().includes('liste_psm')) || wb.SheetNames[0];
+      const ws = wb.Sheets[sheetName];
+      const rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: '' });
+
+      // On s'attend aux colonnes : Référence catalogue, Contenant, Quantité, Libellé catalogue, Produit référentiel
+      const header = rows[0].map(h => (h||'').toString().trim().toLowerCase());
+      const idxRef = header.findIndex(h=>h.includes('référence') || h.includes('reference'));
+      const idxContenant = header.findIndex(h=>h.includes('malle') || h.includes('contenant'));
+      const idxQte = header.findIndex(h=>h.includes('quantité') || h.includes('quantite'));
+      const idxLibelle = header.findIndex(h=>h.includes('libellé') || h.includes('libelle'));
+      const idxProduit = header.findIndex(h=>h.includes('produit'));
+
+      if(idxContenant === -1 || idxQte === -1 || idxLibelle === -1 || idxProduit === -1){
+        throw new Error('Colonnes attendues introuvables (Malle ou Contenant, Quantité, Libellé catalogue, Produit référentiel).');
+      }
+
+      const newProduits = {};
+      let count = 0;
+      for(let i=1; i<rows.length; i++){
+        const row = rows[i];
+        if(!row || row.length === 0) continue;
+        const contenant = (row[idxContenant] || '').toString().trim();
+        const libelle = (row[idxLibelle] || '').toString().trim();
+        const produit_ref = (row[idxProduit] || '').toString().trim();
+        if(!contenant && !libelle && !produit_ref) continue;
+        const id = 'r' + i;
+        newProduits[id] = {
+          ref: idxRef !== -1 ? (row[idxRef] || '').toString().trim() : '',
+          contenant: contenant,
+          quantite: typeof row[idxQte] === 'number' ? row[idxQte] : (parseFloat(row[idxQte]) || 0),
+          libelle: libelle,
+          produit_ref: produit_ref
+        };
+        count++;
+      }
+
+      if(count === 0){
+        throw new Error('Aucune ligne exploitable trouvée dans le fichier.');
+      }
+
+      elImportMsg.textContent = 'Envoi de ' + count + ' lignes vers la base partagée…';
+      await produitsRef.set(newProduits);
+      elImportMsg.className = 'admin-msg ok';
+      elImportMsg.textContent = 'Import terminé (' + count + ' lignes), données mises à jour pour tout le monde ✓';
+    }catch(err){
+      elImportMsg.className = 'admin-msg err';
+      elImportMsg.textContent = 'Erreur : ' + err.message;
+    }finally{
+      elFileImport.value = '';
+    }
+  };
+
+  reader.readAsArrayBuffer(file);
+});
+
+initFirebase();
+</script>
+</body>
+</html>

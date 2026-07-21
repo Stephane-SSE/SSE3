@@ -1,0 +1,62 @@
+{
+  "rules": {
+    "superadmins": {
+      ".read": "auth != null",
+      ".write": false
+    },
+
+    "users": {
+      "$uid": {
+        ".read": "auth != null && (auth.uid === $uid || root.child('superadmins').child(auth.uid).val() === true)",
+
+        "etablissementId": {
+          ".write": "auth != null && (root.child('superadmins').child(auth.uid).val() === true || (root.child('etablissements').child(root.child('users').child(auth.uid).child('etablissementId').val()).child('admins').child(auth.uid).val() === true && newData.val() === root.child('users').child(auth.uid).child('etablissementId').val()))"
+        }
+      }
+    },
+
+    "etablissements": {
+      ".read": "auth != null && root.child('superadmins').child(auth.uid).val() === true",
+
+      "$etabId": {
+        ".read": "auth != null && (root.child('superadmins').child(auth.uid).val() === true || root.child('users').child(auth.uid).child('etablissementId').val() === $etabId)",
+
+        "nom": {
+          ".write": "auth != null && root.child('superadmins').child(auth.uid).val() === true"
+        },
+
+        "admins": {
+          ".write": "auth != null && (root.child('superadmins').child(auth.uid).val() === true || root.child('etablissements').child($etabId).child('admins').child(auth.uid).val() === true)"
+        },
+
+        "produits": {
+          ".write": "auth != null && (root.child('superadmins').child(auth.uid).val() === true || (root.child('users').child(auth.uid).child('etablissementId').val() === $etabId && root.child('etablissements').child($etabId).child('admins').child(auth.uid).val() === true))",
+
+          "$produitId": {
+            "quantite": {
+              ".write": "auth != null && root.child('users').child(auth.uid).child('etablissementId').val() === $etabId"
+            }
+          }
+        }
+      }
+    },
+
+    "demandes": {
+      ".indexOn": "etablissementId",
+      ".read": "auth != null && (root.child('superadmins').child(auth.uid).val() === true || (query.orderByChild == 'etablissementId' && query.equalTo == root.child('users').child(auth.uid).child('etablissementId').val()))",
+
+      "$demandeId": {
+        ".write": "auth != null && ((!data.exists() && newData.child('statut').val() === 'attente' && newData.child('email').exists() && newData.child('etablissementId').exists()) || (data.exists() && (root.child('superadmins').child(auth.uid).val() === true || root.child('etablissements').child(data.child('etablissementId').val()).child('admins').child(auth.uid).val() === true)))"
+      }
+    },
+
+    "produits": {
+      ".read": "auth != null && root.child('superadmins').child(auth.uid).val() === true",
+      ".write": "auth != null && root.child('superadmins').child(auth.uid).val() === true"
+    },
+    "admins": {
+      ".read": "auth != null && root.child('superadmins').child(auth.uid).val() === true",
+      ".write": "auth != null && root.child('superadmins').child(auth.uid).val() === true"
+    }
+  }
+}
