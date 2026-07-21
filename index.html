@@ -677,6 +677,11 @@
 
     <div id="fin-prelevement-panel" style="display:none;margin-top:10px;padding:12px;border:1.5px dashed var(--line);border-radius:10px;">
       <div id="fin-prelevement-summary" style="font-size:13px;margin-bottom:8px;"></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px;">
+        <label style="font-size:12.5px;color:var(--muted);">Jour :</label>
+        <input type="date" id="fin-prelevement-jour" style="padding:8px 10px;font-size:14px;border:1.5px solid var(--line);border-radius:8px;">
+        <button class="btn-secondary" id="btn-reexporter-jour" type="button">Ré-exporter ce jour</button>
+      </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
         <input type="email" id="fin-prelevement-email" placeholder="e-mail pour l'envoi (facultatif)" style="flex:1;min-width:180px;padding:9px 10px;font-size:14px;border:1.5px solid var(--line);border-radius:8px;">
         <button class="btn-secondary" id="btn-envoyer-recap" type="button">Envoyer par e-mail</button>
@@ -835,7 +840,6 @@ let currentEtabId = null;
 let isSuperAdmin = false;
 let isLocalAdmin = false;
 let attachedEtabId = null; // évite de rattacher deux fois le listener produits
-let sessionPrelevements = []; // journal des prélèvements validés durant la session en cours
 
 const elLibelle   = document.getElementById('q-libelle');
 const elProduit   = document.getElementById('q-produit');
@@ -845,8 +849,15 @@ const elRaz       = document.getElementById('raz');
 const elBtnFinPrelevement    = document.getElementById('btn-fin-prelevement');
 const elFinPrelevementPanel  = document.getElementById('fin-prelevement-panel');
 const elFinPrelevementSummary= document.getElementById('fin-prelevement-summary');
+const elFinPrelevementJour   = document.getElementById('fin-prelevement-jour');
+const elBtnReexporterJour    = document.getElementById('btn-reexporter-jour');
 const elFinPrelevementEmail  = document.getElementById('fin-prelevement-email');
 const elBtnEnvoyerRecap      = document.getElementById('btn-envoyer-recap');
+if(elFinPrelevementJour){
+  const p = n => String(n).padStart(2,'0');
+  const now = new Date();
+  elFinPrelevementJour.value = now.getFullYear() + '-' + p(now.getMonth()+1) + '-' + p(now.getDate());
+}
 const elFinPrelevementMsg    = document.getElementById('fin-prelevement-msg');
 const elStatusDot = document.getElementById('status-dot');
 const elStatusTxt = document.getElementById('status-text');
@@ -1899,26 +1910,44 @@ elRaz.addEventListener('click', ()=>{
   render();
 });
 
-// --- Fin de prélèvement : export Excel + PDF du journal de la session, envoi facultatif par e-mail ---
+// --- Fin de prélèvement : export Excel + PDF de l'historique du jour (persistant), envoi facultatif par e-mail ---
 
-function formatDateHeure(d){
+function todayKey(d){
+  d = d || new Date();
+  const p = n => String(n).padStart(2,'0');
+  return d.getFullYear() + '-' + p(d.getMonth()+1) + '-' + p(d.getDate());
+}
+
+function formatDateHeure(ts){
+  const d = (typeof ts === 'number') ? new Date(ts) : new Date();
   const p = n => String(n).padStart(2,'0');
   return p(d.getDate()) + '/' + p(d.getMonth()+1) + '/' + d.getFullYear() + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
 }
 
-function buildRecapRows(){
-  return sessionPrelevements.map(e=>({
-    'Date/heure': formatDateHeure(e.date),
+// Récupère l'historique persistant d'un jour donné (clé "AAAA-MM-JJ") pour
+// l'établissement courant. Survit aux déconnexions/rechargements puisqu'il est
+// alimenté en base par tous les utilisateurs au fil de leurs prélèvements.
+async function loadHistoriqueJour(dateKey){
+  if(!currentEtabId) return [];
+  const snap = await db.ref('etablissements/' + currentEtabId + '/historique/' + dateKey).once('value');
+  const val = snap.val() || {};
+  return Object.values(val).sort((a,b)=> (a.dateHeure||0) - (b.dateHeure||0));
+}
+
+function buildRecapRows(entries){
+  return entries.map(e=>({
+    'Date/heure': formatDateHeure(e.dateHeure),
     'Malle': e.malle,
     'Libellé catalogue': e.libelle,
     'Produit référentiel': e.produit_ref,
     'Réf. catalogue': e.ref,
-    'Quantité prélevée': e.quantite
+    'Quantité prélevée': e.quantite,
+    'Utilisateur': e.utilisateur || ''
   }));
 }
 
-function buildRecapWorkbookBlob(){
-  const rows = buildRecapRows();
+function buildRecapWorkbookBlob(entries){
+  const rows = buildRecapRows(entries);
   const ws = XLSX.utils.json_to_sheet(rows);
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Prélèvements');
@@ -1926,18 +1955,18 @@ function buildRecapWorkbookBlob(){
   return new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
 }
 
-function buildRecapPdfBlob(){
+function buildRecapPdfBlob(entries, dateKey){
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ orientation: 'landscape' });
   const etabNom = elEtabNameValue.textContent || currentEtabId || '';
   doc.setFontSize(14);
-  doc.text('Récapitulatif de prélèvement — ' + etabNom, 14, 15);
+  doc.text('Récapitulatif de prélèvement — ' + etabNom + ' — ' + dateKey, 14, 15);
   doc.setFontSize(10);
-  doc.text('Édité le ' + formatDateHeure(new Date()) + ' par ' + ((currentUser && currentUser.email) || ''), 14, 21);
+  doc.text('Édité le ' + formatDateHeure(Date.now()) + ' par ' + ((currentUser && currentUser.email) || ''), 14, 21);
   doc.autoTable({
     startY: 26,
-    head: [['Date/heure', 'Malle', 'Libellé catalogue', 'Produit référentiel', 'Réf. catalogue', 'Qté prélevée']],
-    body: sessionPrelevements.map(e=>[formatDateHeure(e.date), e.malle, e.libelle, e.produit_ref, e.ref, String(e.quantite)]),
+    head: [['Date/heure', 'Malle', 'Libellé catalogue', 'Produit référentiel', 'Réf. catalogue', 'Qté prélevée', 'Utilisateur']],
+    body: entries.map(e=>[formatDateHeure(e.dateHeure), e.malle, e.libelle, e.produit_ref, e.ref, String(e.quantite), e.utilisateur||'']),
     styles: { fontSize: 8 }
   });
   return doc.output('blob');
@@ -1957,38 +1986,59 @@ function downloadBlob(blob, filename){
 let lastRecapXlsxBlob = null;
 let lastRecapPdfBlob = null;
 
-elBtnFinPrelevement.addEventListener('click', ()=>{
-  if(sessionPrelevements.length === 0){
-    alert('Aucun prélèvement n\'a été enregistré durant cette session.');
+async function exporterJour(dateKey, demanderConfirmation){
+  let entries;
+  try{
+    entries = await loadHistoriqueJour(dateKey);
+  }catch(err){
+    alert('Erreur de lecture de l\'historique : ' + err.message);
     return;
   }
-  const confirmed = confirm(
-    'Clôturer la session de prélèvement ?\n\n' +
-    sessionPrelevements.length + ' ligne(s) de prélèvement vont être exportées en Excel et PDF (téléchargement), ' +
-    'puis le journal de cette session sera vidé.'
-  );
-  if(!confirmed) return;
+  if(entries.length === 0){
+    alert('Aucun prélèvement enregistré pour le ' + dateKey + '.');
+    return;
+  }
+  if(demanderConfirmation){
+    const confirmed = confirm(
+      'Exporter le récapitulatif du ' + dateKey + ' ?\n\n' +
+      entries.length + ' ligne(s) de prélèvement (tous utilisateurs confondus pour cet établissement) ' +
+      'vont être exportées en Excel et PDF (téléchargement). L\'historique reste conservé en base, ' +
+      'vous pourrez le ré-exporter à tout moment.'
+    );
+    if(!confirmed) return;
+  }
 
   const etabSlug = normalize(currentEtabId || 'psm').replace(/[^a-z0-9]+/g,'-');
-  const stamp = new Date().toISOString().slice(0,16).replace(/[:T]/g,'-');
-  const baseName = 'prelevements_' + etabSlug + '_' + stamp;
+  const baseName = 'prelevements_' + etabSlug + '_' + dateKey;
 
   try{
-    lastRecapXlsxBlob = buildRecapWorkbookBlob();
-    lastRecapPdfBlob = buildRecapPdfBlob();
+    lastRecapXlsxBlob = buildRecapWorkbookBlob(entries);
+    lastRecapPdfBlob = buildRecapPdfBlob(entries, dateKey);
     downloadBlob(lastRecapXlsxBlob, baseName + '.xlsx');
     downloadBlob(lastRecapPdfBlob, baseName + '.pdf');
 
-    elFinPrelevementSummary.textContent = sessionPrelevements.length + ' ligne(s) exportée(s) et téléchargée(s) (Excel + PDF).';
+    elFinPrelevementSummary.textContent = entries.length + ' ligne(s) du ' + dateKey + ' exportée(s) et téléchargée(s) (Excel + PDF). L\'historique reste conservé en base.';
+    elFinPrelevementJour.value = dateKey;
     elFinPrelevementPanel.style.display = 'block';
     elFinPrelevementMsg.className = 'admin-msg';
     elFinPrelevementMsg.textContent = '';
     if(currentUser && currentUser.email) elFinPrelevementEmail.value = currentUser.email;
-
-    sessionPrelevements = [];
   }catch(err){
     alert('Erreur lors de la génération des fichiers : ' + err.message);
   }
+}
+
+elBtnFinPrelevement.addEventListener('click', ()=>{
+  exporterJour(todayKey(), true);
+});
+
+elBtnReexporterJour.addEventListener('click', ()=>{
+  const dateKey = (elFinPrelevementJour.value || '').trim();
+  if(!dateKey){
+    alert('Choisissez un jour.');
+    return;
+  }
+  exporterJour(dateKey, false);
 });
 
 elBtnEnvoyerRecap.addEventListener('click', async ()=>{
@@ -2111,14 +2161,21 @@ elResults.addEventListener('click', (ev)=>{
       freshMsg.className = 'row-msg ok';
       freshMsg.textContent = 'Prélèvement enregistré ✓';
       if(freshInput) freshInput.value = '';
-      sessionPrelevements.push({
-        date: new Date(),
-        malle: produitSnapshot.malle,
-        libelle: produitSnapshot.libelle,
-        produit_ref: produitSnapshot.produit_ref,
-        ref: produitSnapshot.ref,
-        quantite: val
-      });
+      // Historique persistant (survit aux déconnexions/rechargements) : une entrée
+      // par jour et par établissement, alimentée par tous les utilisateurs.
+      if(currentEtabId){
+        const entry = {
+          dateHeure: firebase.database.ServerValue.TIMESTAMP,
+          malle: produitSnapshot.malle,
+          libelle: produitSnapshot.libelle,
+          produit_ref: produitSnapshot.produit_ref,
+          ref: produitSnapshot.ref,
+          quantite: val,
+          utilisateur: (currentUser && currentUser.email) || ''
+        };
+        db.ref('etablissements/' + currentEtabId + '/historique/' + todayKey()).push(entry)
+          .catch(err=>{ console.error('Erreur journalisation historique :', err); });
+      }
     }
   });
 });
