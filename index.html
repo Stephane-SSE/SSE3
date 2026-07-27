@@ -2416,12 +2416,25 @@ function buildRecapWorkbookBlob(entries){
   return new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
 }
 
+const JOURS_ABREGES_FR = ['dim.','lun.','mar.','mer.','jeu.','ven.','sam.'];
+const MOIS_ABREGES_FR  = ['janv.','févr.','mars','avr.','mai','juin','juil.','août','sept.','oct.','nov.','déc.'];
+
+// Formate une clé de date "AAAA-MM-JJ" en "jjj jj-mmm-aaaa", ex. "lun. 27-juil.-2026".
+function formatDateLongFr(dateKey){
+  const parts = (dateKey || '').split('-');
+  if(parts.length !== 3) return dateKey;
+  const d = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+  if(isNaN(d.getTime())) return dateKey;
+  const p = n => String(n).padStart(2,'0');
+  return JOURS_ABREGES_FR[d.getDay()] + ' ' + p(d.getDate()) + '-' + MOIS_ABREGES_FR[d.getMonth()] + '-' + d.getFullYear();
+}
+
 function buildRecapPdfBlob(entries, dateKey){
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ orientation: 'landscape' });
   const etabNom = elEtabNameValue.textContent || currentEtabId || '';
   doc.setFontSize(14);
-  doc.text('Récapitulatif de prélèvement — ' + etabNom + ' — ' + dateKey, 14, 15);
+  doc.text('Récapitulatif de prélèvement — ' + etabNom + ' — ' + formatDateLongFr(dateKey), 14, 15);
   doc.setFontSize(10);
   doc.text('Édité le ' + formatDateHeure(Date.now()) + ' par ' + getCurrentUserDisplayName(), 14, 21);
   doc.autoTable({
