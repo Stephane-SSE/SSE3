@@ -766,6 +766,8 @@
         <label style="display:block;font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--teal);margin-bottom:4px;">Créer un utilisateur pour mon établissement</label>
         <p style="font-size:12px;color:var(--muted);margin:0 0 8px;">Saisissez son e-mail : le compte est créé, rattaché à <b id="local-attach-etab-name"></b>, et un e-mail lui est envoyé pour définir son mot de passe. Aucun accès à la Console Firebase nécessaire.</p>
         <div class="admin-lock-row">
+          <input type="text" id="local-create-nom" placeholder="NOM" style="width:120px;padding:9px 10px;font-size:14px;border:1.5px solid var(--line);border-radius:8px;text-transform:uppercase;">
+          <input type="text" id="local-create-prenom" placeholder="Prénom" style="width:120px;padding:9px 10px;font-size:14px;border:1.5px solid var(--line);border-radius:8px;">
           <input type="email" id="local-create-email" placeholder="e-mail du nouvel utilisateur" style="flex:1;min-width:160px;padding:9px 10px;font-size:14px;border:1.5px solid var(--line);border-radius:8px;">
           <label style="font-size:12.5px;display:flex;align-items:center;gap:4px;"><input type="checkbox" id="local-create-is-admin"> Administrateur de cet établissement</label>
           <button class="btn-secondary" id="btn-local-create-user" type="button">Créer le compte</button>
@@ -774,6 +776,8 @@
 
         <p style="font-size:11.5px;color:var(--muted);margin:14px 0 4px;">Ou rattacher un compte déjà existant (créé ailleurs) :</p>
         <div class="admin-lock-row">
+          <input type="text" id="local-attach-nom" placeholder="NOM" style="width:120px;padding:9px 10px;font-size:14px;border:1.5px solid var(--line);border-radius:8px;text-transform:uppercase;">
+          <input type="text" id="local-attach-prenom" placeholder="Prénom" style="width:120px;padding:9px 10px;font-size:14px;border:1.5px solid var(--line);border-radius:8px;">
           <input type="text" id="local-attach-uid" placeholder="UID de l'utilisateur" style="flex:1;min-width:160px;padding:9px 10px;font-size:14px;border:1.5px solid var(--line);border-radius:8px;">
           <label style="font-size:12.5px;display:flex;align-items:center;gap:4px;"><input type="checkbox" id="local-attach-is-admin"> Administrateur de cet établissement</label>
           <button class="btn-secondary" id="btn-local-attach-user" type="button">Rattacher</button>
@@ -813,6 +817,8 @@
           <label style="display:block;font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--teal);margin-bottom:4px;">Créer un utilisateur pour un établissement</label>
           <p style="font-size:12px;color:var(--muted);margin:0 0 8px;">Saisissez son e-mail, choisissez l'établissement : le compte est créé et un e-mail lui est envoyé pour définir son mot de passe.</p>
           <div class="admin-lock-row">
+            <input type="text" id="create-nom" placeholder="NOM" style="width:120px;padding:9px 10px;font-size:14px;border:1.5px solid var(--line);border-radius:8px;text-transform:uppercase;">
+            <input type="text" id="create-prenom" placeholder="Prénom" style="width:120px;padding:9px 10px;font-size:14px;border:1.5px solid var(--line);border-radius:8px;">
             <input type="email" id="create-email" placeholder="e-mail du nouvel utilisateur" style="flex:1;min-width:160px;padding:9px 10px;font-size:14px;border:1.5px solid var(--line);border-radius:8px;">
             <select id="create-etab-select" style="padding:9px 10px;font-size:14px;border:1.5px solid var(--line);border-radius:8px;background:#FCFCFB;"></select>
             <label style="font-size:12.5px;display:flex;align-items:center;gap:4px;"><input type="checkbox" id="create-is-admin"> Admin local</label>
@@ -822,6 +828,8 @@
 
           <p style="font-size:11.5px;color:var(--muted);margin:14px 0 4px;">Ou rattacher un compte déjà existant (UID Firebase) :</p>
           <div class="admin-lock-row">
+            <input type="text" id="attach-nom" placeholder="NOM" style="width:120px;padding:9px 10px;font-size:14px;border:1.5px solid var(--line);border-radius:8px;text-transform:uppercase;">
+            <input type="text" id="attach-prenom" placeholder="Prénom" style="width:120px;padding:9px 10px;font-size:14px;border:1.5px solid var(--line);border-radius:8px;">
             <input type="text" id="attach-uid" placeholder="UID de l'utilisateur" style="flex:1;min-width:160px;padding:9px 10px;font-size:14px;border:1.5px solid var(--line);border-radius:8px;">
             <select id="attach-etab-select" style="padding:9px 10px;font-size:14px;border:1.5px solid var(--line);border-radius:8px;background:#FCFCFB;"></select>
             <label style="font-size:12.5px;display:flex;align-items:center;gap:4px;"><input type="checkbox" id="attach-is-admin"> Admin local</label>
@@ -1195,6 +1203,8 @@ let db = null;
 let dbListenerAttached = false;
 let isAdmin = false;
 let currentUser = null;
+let currentUserNom = '';
+let currentUserPrenom = '';
 
 // --- Multi-établissements ---
 const LEGACY_ETAB_ID = 'etab-principal'; // identifiant utilisé pour migrer les anciennes données racine
@@ -1231,10 +1241,14 @@ const elAdminAllowed = document.getElementById('admin-allowed');
 // Rattachement d'utilisateur par un admin local (scopé à son propre établissement)
 const elLocalUserAttach     = document.getElementById('local-user-attach');
 const elLocalAttachEtabName = document.getElementById('local-attach-etab-name');
+const elLocalCreateNom      = document.getElementById('local-create-nom');
+const elLocalCreatePrenom   = document.getElementById('local-create-prenom');
 const elLocalCreateEmail    = document.getElementById('local-create-email');
 const elLocalCreateIsAdmin  = document.getElementById('local-create-is-admin');
 const elBtnLocalCreateUser  = document.getElementById('btn-local-create-user');
 const elLocalCreateMsg      = document.getElementById('local-create-msg');
+const elLocalAttachNom      = document.getElementById('local-attach-nom');
+const elLocalAttachPrenom   = document.getElementById('local-attach-prenom');
 const elLocalAttachUid      = document.getElementById('local-attach-uid');
 const elLocalAttachIsAdmin  = document.getElementById('local-attach-is-admin');
 const elBtnLocalAttachUser  = document.getElementById('btn-local-attach-user');
@@ -1254,11 +1268,15 @@ const elNewEtabNom       = document.getElementById('new-etab-nom');
 const elBtnCreateEtab    = document.getElementById('btn-create-etab');
 const elCreateEtabMsg    = document.getElementById('create-etab-msg');
 const elEtabList         = document.getElementById('etab-list');
+const elAttachNom         = document.getElementById('attach-nom');
+const elAttachPrenom      = document.getElementById('attach-prenom');
 const elAttachUid        = document.getElementById('attach-uid');
 const elAttachEtabSelect = document.getElementById('attach-etab-select');
 const elAttachIsAdmin    = document.getElementById('attach-is-admin');
 const elBtnAttachUser    = document.getElementById('btn-attach-user');
 const elAttachMsg        = document.getElementById('attach-msg');
+const elCreateNom        = document.getElementById('create-nom');
+const elCreatePrenom     = document.getElementById('create-prenom');
 const elCreateEmail      = document.getElementById('create-email');
 const elCreateEtabSelect = document.getElementById('create-etab-select');
 const elCreateIsAdmin    = document.getElementById('create-is-admin');
@@ -1565,6 +1583,8 @@ function initFirebase(){
       });
     }else if(!user){
       currentUser = null;
+      currentUserNom = '';
+      currentUserPrenom = '';
       isAdmin = false;
       isSuperAdmin = false;
       isLocalAdmin = false;
@@ -1613,6 +1633,13 @@ async function resolveEtablissement(user){
     const superSnap = await db.ref('superadmins/' + user.uid).once('value');
     isSuperAdmin = superSnap.exists() && superSnap.val() !== false;
   }catch(e){ isSuperAdmin = false; }
+
+  try{
+    const nomSnap = await db.ref('users/' + user.uid + '/nom').once('value');
+    const prenomSnap = await db.ref('users/' + user.uid + '/prenom').once('value');
+    currentUserNom = nomSnap.val() || '';
+    currentUserPrenom = prenomSnap.val() || '';
+  }catch(e){ currentUserNom = ''; currentUserPrenom = ''; }
 
   if(isSuperAdmin){
     elSuperadminZone.style.display = 'block';
@@ -1746,6 +1773,8 @@ async function createEtablissement(){
 }
 
 async function attachUserToEtab(){
+  const nom = (elAttachNom.value || '').trim().toUpperCase();
+  const prenom = (elAttachPrenom.value || '').trim();
   const uid = (elAttachUid.value || '').trim();
   const etabId = elAttachEtabSelect.value;
   const asAdmin = elAttachIsAdmin.checked;
@@ -1765,11 +1794,15 @@ async function attachUserToEtab(){
   elAttachMsg.textContent = 'Rattachement…';
   try{
     await db.ref('users/' + uid + '/etablissementId').set(etabId);
+    if(nom) await db.ref('users/' + uid + '/nom').set(nom);
+    if(prenom) await db.ref('users/' + uid + '/prenom').set(prenom);
     if(asAdmin){
       await db.ref('etablissements/' + etabId + '/admins/' + uid).set(true);
     }
     elAttachMsg.className = 'admin-msg ok';
     elAttachMsg.textContent = 'Utilisateur rattaché à ' + etabId + (asAdmin ? ' (admin local)' : '') + '.';
+    elAttachNom.value = '';
+    elAttachPrenom.value = '';
     elAttachUid.value = '';
     elAttachIsAdmin.checked = false;
     loadEtablissementsList();
@@ -1840,6 +1873,8 @@ elBtnMigrate.addEventListener('click', migrateLegacyData);
 // Rattache un utilisateur à l'établissement de l'admin connecté (pas de choix
 // d'établissement : il est automatiquement celui de la personne qui rattache).
 async function attachUserToMyEtab(){
+  const nom = (elLocalAttachNom.value || '').trim().toUpperCase();
+  const prenom = (elLocalAttachPrenom.value || '').trim();
   const uid = (elLocalAttachUid.value || '').trim();
   const asAdmin = elLocalAttachIsAdmin.checked;
   elLocalAttachMsg.className = 'admin-msg';
@@ -1858,11 +1893,15 @@ async function attachUserToMyEtab(){
   elLocalAttachMsg.textContent = 'Rattachement…';
   try{
     await db.ref('users/' + uid + '/etablissementId').set(currentEtabId);
+    if(nom) await db.ref('users/' + uid + '/nom').set(nom);
+    if(prenom) await db.ref('users/' + uid + '/prenom').set(prenom);
     if(asAdmin){
       await db.ref('etablissements/' + currentEtabId + '/admins/' + uid).set(true);
     }
     elLocalAttachMsg.className = 'admin-msg ok';
     elLocalAttachMsg.textContent = 'Utilisateur rattaché à ' + (elEtabNameValue.textContent || currentEtabId) + (asAdmin ? ' (administrateur)' : '') + '.';
+    elLocalAttachNom.value = '';
+    elLocalAttachPrenom.value = '';
     elLocalAttachUid.value = '';
     elLocalAttachIsAdmin.checked = false;
   }catch(err){
@@ -1899,10 +1938,12 @@ function isValidEmail(v){
 
 // Crée le compte Firebase Auth, le rattache à l'établissement, envoie un e-mail
 // de définition de mot de passe, puis nettoie la session secondaire.
-async function createAndAttachUser(email, etabId, asAdmin, msgEl, btnEl){
+async function createAndAttachUser(email, etabId, asAdmin, msgEl, btnEl, nom, prenom){
   msgEl.className = 'admin-msg';
   msgEl.textContent = '';
   email = (email || '').trim();
+  nom = (nom || '').trim().toUpperCase();
+  prenom = (prenom || '').trim();
   if(!isValidEmail(email)){
     msgEl.className = 'admin-msg err';
     msgEl.textContent = 'Indiquez un e-mail valide.';
@@ -1920,6 +1961,8 @@ async function createAndAttachUser(email, etabId, asAdmin, msgEl, btnEl){
     const cred = await secAuth.createUserWithEmailAndPassword(email, randomTempPassword());
     const uid = cred.user.uid;
     await db.ref('users/' + uid + '/etablissementId').set(etabId);
+    if(nom) await db.ref('users/' + uid + '/nom').set(nom);
+    if(prenom) await db.ref('users/' + uid + '/prenom').set(prenom);
     if(asAdmin){
       await db.ref('etablissements/' + etabId + '/admins/' + uid).set(true);
     }
@@ -1941,9 +1984,11 @@ async function createAndAttachUser(email, etabId, asAdmin, msgEl, btnEl){
 }
 
 elBtnLocalCreateUser.addEventListener('click', ()=>{
-  createAndAttachUser(elLocalCreateEmail.value, currentEtabId, elLocalCreateIsAdmin.checked, elLocalCreateMsg, elBtnLocalCreateUser)
+  createAndAttachUser(elLocalCreateEmail.value, currentEtabId, elLocalCreateIsAdmin.checked, elLocalCreateMsg, elBtnLocalCreateUser, elLocalCreateNom.value, elLocalCreatePrenom.value)
     .then(()=>{
       if(elLocalCreateMsg.className.indexOf('ok') !== -1){
+        elLocalCreateNom.value = '';
+        elLocalCreatePrenom.value = '';
         elLocalCreateEmail.value = '';
         elLocalCreateIsAdmin.checked = false;
       }
@@ -1952,9 +1997,11 @@ elBtnLocalCreateUser.addEventListener('click', ()=>{
 
 elBtnCreateUser.addEventListener('click', ()=>{
   const etabId = elCreateEtabSelect.value;
-  createAndAttachUser(elCreateEmail.value, etabId, elCreateIsAdmin.checked, elCreateUserMsg, elBtnCreateUser)
+  createAndAttachUser(elCreateEmail.value, etabId, elCreateIsAdmin.checked, elCreateUserMsg, elBtnCreateUser, elCreateNom.value, elCreatePrenom.value)
     .then(()=>{
       if(elCreateUserMsg.className.indexOf('ok') !== -1){
+        elCreateNom.value = '';
+        elCreatePrenom.value = '';
         elCreateEmail.value = '';
         elCreateIsAdmin.checked = false;
       }
@@ -1997,7 +2044,7 @@ function renderDemandesList(container, demandesObj){
       (d.motif ? ' &middot; ' + escapeHtml(d.motif) : '') + '</span>' +
       '<div style="margin-top:6px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">' +
       '<label style="font-size:12.5px;display:flex;align-items:center;gap:4px;"><input type="checkbox" class="demande-admin-flag" data-id="' + id + '"> Administrateur</label>' +
-      '<button class="btn-secondary demande-approve" data-id="' + id + '" data-etab="' + escapeHtml(d.etablissementId||'') + '" data-email="' + escapeHtml(d.email||'') + '" type="button">Approuver</button>' +
+      '<button class="btn-secondary demande-approve" data-id="' + id + '" data-etab="' + escapeHtml(d.etablissementId||'') + '" data-email="' + escapeHtml(d.email||'') + '" data-nom="' + escapeHtml(d.nom||'') + '" type="button">Approuver</button>' +
       '<button class="btn-secondary demande-refuse" data-id="' + id + '" data-email="' + escapeHtml(d.email||'') + '" data-nom="' + escapeHtml(d.nom||'') + '" type="button">Refuser</button>' +
       '</div>' +
       '<span class="admin-msg" data-msg-for="' + id + '"></span>' +
@@ -2010,6 +2057,13 @@ async function handleApproveDemande(btn){
   const id = btn.getAttribute('data-id');
   const etabId = btn.getAttribute('data-etab');
   const email = btn.getAttribute('data-email');
+  const nomComplet = btn.getAttribute('data-nom') || '';
+  // La demande ne contient qu'un champ libre "Nom et prénom" (ex. "Sophie Martin") :
+  // on le découpe au mieux (dernier mot = nom de famille) pour préremplir
+  // les 2 champs séparés attendus par createAndAttachUser.
+  const nomParts = nomComplet.trim().split(/\s+/).filter(Boolean);
+  const prenom = nomParts.slice(0, -1).join(' ');
+  const nom = nomParts.length ? nomParts[nomParts.length - 1] : '';
   const container = btn.closest('div[style*="border-top"]');
   const checkbox = container ? container.querySelector('.demande-admin-flag') : null;
   const msgEl = container ? container.querySelector('[data-msg-for="' + id + '"]') : null;
@@ -2019,7 +2073,7 @@ async function handleApproveDemande(btn){
   btn.disabled = true;
 
   const tempMsgEl = msgEl || { className: '', textContent: '' };
-  await createAndAttachUser(email, etabId, asAdmin, tempMsgEl, btn);
+  await createAndAttachUser(email, etabId, asAdmin, tempMsgEl, btn, nom, prenom);
 
   if(tempMsgEl.className.indexOf('ok') !== -1){
     try{
@@ -2300,6 +2354,25 @@ function formatNomPrenom(email){
   return nom + ' ' + prenom;
 }
 
+// Affichage "NOM Prénom" pour le compte actuellement connecté (utilisé au
+// moment d'enregistrer un prélèvement). Se base sur les champs NOM/Prénom
+// renseignés à la création du compte ; à défaut, déduit un nom depuis l'email.
+function getCurrentUserDisplayName(){
+  if(currentUserNom && currentUserPrenom) return currentUserNom + ' ' + currentUserPrenom;
+  if(currentUserNom) return currentUserNom;
+  return formatNomPrenom((currentUser && currentUser.email) || '');
+}
+
+// Affichage "NOM Prénom" pour une ligne de l'historique des prélèvements :
+// utilise le nom/prénom enregistrés avec la ligne (entrées créées après
+// l'ajout de cette fonctionnalité) ; à défaut, retombe sur l'e-mail déduit
+// (entrées plus anciennes).
+function formatEntreeUtilisateur(e){
+  if(e.utilisateurNom && e.utilisateurPrenom) return e.utilisateurNom + ' ' + e.utilisateurPrenom;
+  if(e.utilisateurNom) return e.utilisateurNom;
+  return formatNomPrenom(e.utilisateur);
+}
+
 function todayKey(d){
   d = d || new Date();
   const p = n => String(n).padStart(2,'0');
@@ -2330,7 +2403,7 @@ function buildRecapRows(entries){
     'Produit référentiel': e.produit_ref,
     'Réf. catalogue': e.ref,
     'Quantité prélevée': e.quantite,
-    'Utilisateur': formatNomPrenom(e.utilisateur)
+    'Utilisateur': formatEntreeUtilisateur(e)
   }));
 }
 
@@ -2350,11 +2423,11 @@ function buildRecapPdfBlob(entries, dateKey){
   doc.setFontSize(14);
   doc.text('Récapitulatif de prélèvement — ' + etabNom + ' — ' + dateKey, 14, 15);
   doc.setFontSize(10);
-  doc.text('Édité le ' + formatDateHeure(Date.now()) + ' par ' + formatNomPrenom((currentUser && currentUser.email) || ''), 14, 21);
+  doc.text('Édité le ' + formatDateHeure(Date.now()) + ' par ' + getCurrentUserDisplayName(), 14, 21);
   doc.autoTable({
     startY: 26,
     head: [['Date/heure', 'Malle', 'Libellé catalogue', 'Produit référentiel', 'Réf. catalogue', 'Qté prélevée', 'Utilisateur']],
-    body: entries.map(e=>[formatDateHeure(e.dateHeure), e.malle, e.libelle, e.produit_ref, e.ref, String(e.quantite), formatNomPrenom(e.utilisateur)]),
+    body: entries.map(e=>[formatDateHeure(e.dateHeure), e.malle, e.libelle, e.produit_ref, e.ref, String(e.quantite), formatEntreeUtilisateur(e)]),
     styles: { fontSize: 8 }
   });
   return doc.output('blob');
@@ -2507,7 +2580,9 @@ elResults.addEventListener('click', (ev)=>{
           produit_ref: produitSnapshot.produit_ref,
           ref: produitSnapshot.ref,
           quantite: val,
-          utilisateur: (currentUser && currentUser.email) || ''
+          utilisateur: (currentUser && currentUser.email) || '',
+          utilisateurNom: currentUserNom || '',
+          utilisateurPrenom: currentUserPrenom || ''
         };
         db.ref('etablissements/' + currentEtabId + '/historique/' + todayKey()).push(entry)
           .catch(err=>{ console.error('Erreur journalisation historique :', err); });
