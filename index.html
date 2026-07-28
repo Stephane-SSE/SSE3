@@ -635,8 +635,12 @@
       <h2>Demander un accès</h2>
       <p class="intro">Votre demande est envoyée à l'administrateur. Après validation, vous recevrez vos identifiants.</p>
       <div class="login-field">
-        <label for="req-name">Nom et prénom</label>
-        <input type="text" id="req-name" autocomplete="name" placeholder="Prénom Nom">
+        <label for="req-nom">Nom</label>
+        <input type="text" id="req-nom" autocomplete="family-name" placeholder="NOM" style="text-transform:uppercase;">
+      </div>
+      <div class="login-field">
+        <label for="req-prenom">Prénom</label>
+        <input type="text" id="req-prenom" autocomplete="given-name" placeholder="Prénom">
       </div>
       <div class="login-field">
         <label for="req-email">Adresse e-mail</label>
@@ -1301,7 +1305,8 @@ const elRequestPanel = document.getElementById('request-panel');
 const elBtnShowReq   = document.getElementById('btn-show-request');
 const elBtnBackLogin = document.getElementById('btn-back-login');
 const elBtnSendReq   = document.getElementById('btn-send-request');
-const elReqName      = document.getElementById('req-name');
+const elReqNom       = document.getElementById('req-nom');
+const elReqPrenom    = document.getElementById('req-prenom');
 const elReqEmail     = document.getElementById('req-email');
 const elReqEtab      = document.getElementById('req-etab');
 const elReqMotif     = document.getElementById('req-motif');
@@ -2039,13 +2044,13 @@ function renderDemandesList(container, demandesObj){
   ids.forEach(id=>{
     const d = demandesObj[id];
     html += '<div style="padding:8px 0;border-top:1px dashed var(--line);">' +
-      '<b>' + escapeHtml(d.nom||'') + '</b> — ' + escapeHtml(d.email||'') + '<br>' +
+      '<b>' + escapeHtml(d.nom||'') + ' ' + escapeHtml(d.prenom||'') + '</b> — ' + escapeHtml(d.email||'') + '<br>' +
       '<span style="font-size:12px;color:var(--muted);">Établissement demandé : ' + escapeHtml(d.etablissementNom || d.etablissementId || '') +
       (d.motif ? ' &middot; ' + escapeHtml(d.motif) : '') + '</span>' +
       '<div style="margin-top:6px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">' +
       '<label style="font-size:12.5px;display:flex;align-items:center;gap:4px;"><input type="checkbox" class="demande-admin-flag" data-id="' + id + '"> Administrateur</label>' +
-      '<button class="btn-secondary demande-approve" data-id="' + id + '" data-etab="' + escapeHtml(d.etablissementId||'') + '" data-email="' + escapeHtml(d.email||'') + '" data-nom="' + escapeHtml(d.nom||'') + '" type="button">Approuver</button>' +
-      '<button class="btn-secondary demande-refuse" data-id="' + id + '" data-email="' + escapeHtml(d.email||'') + '" data-nom="' + escapeHtml(d.nom||'') + '" type="button">Refuser</button>' +
+      '<button class="btn-secondary demande-approve" data-id="' + id + '" data-etab="' + escapeHtml(d.etablissementId||'') + '" data-email="' + escapeHtml(d.email||'') + '" data-nom="' + escapeHtml(d.nom||'') + '" data-prenom="' + escapeHtml(d.prenom||'') + '" type="button">Approuver</button>' +
+      '<button class="btn-secondary demande-refuse" data-id="' + id + '" data-email="' + escapeHtml(d.email||'') + '" data-nom="' + escapeHtml(d.nom||'') + '" data-prenom="' + escapeHtml(d.prenom||'') + '" type="button">Refuser</button>' +
       '</div>' +
       '<span class="admin-msg" data-msg-for="' + id + '"></span>' +
       '</div>';
@@ -2057,13 +2062,8 @@ async function handleApproveDemande(btn){
   const id = btn.getAttribute('data-id');
   const etabId = btn.getAttribute('data-etab');
   const email = btn.getAttribute('data-email');
-  const nomComplet = btn.getAttribute('data-nom') || '';
-  // La demande ne contient qu'un champ libre "Nom et prénom" (ex. "Sophie Martin") :
-  // on le découpe au mieux (dernier mot = nom de famille) pour préremplir
-  // les 2 champs séparés attendus par createAndAttachUser.
-  const nomParts = nomComplet.trim().split(/\s+/).filter(Boolean);
-  const prenom = nomParts.slice(0, -1).join(' ');
-  const nom = nomParts.length ? nomParts[nomParts.length - 1] : '';
+  const nom = btn.getAttribute('data-nom') || '';
+  const prenom = btn.getAttribute('data-prenom') || '';
   const container = btn.closest('div[style*="border-top"]');
   const checkbox = container ? container.querySelector('.demande-admin-flag') : null;
   const msgEl = container ? container.querySelector('[data-msg-for="' + id + '"]') : null;
@@ -2092,6 +2092,7 @@ async function handleRefuseDemande(btn){
   const id = btn.getAttribute('data-id');
   const email = btn.getAttribute('data-email');
   const nom = btn.getAttribute('data-nom');
+  const prenom = btn.getAttribute('data-prenom') || '';
   const container = btn.closest('div[style*="border-top"]');
   const msgEl = container ? container.querySelector('[data-msg-for="' + id + '"]') : null;
 
@@ -2102,7 +2103,7 @@ async function handleRefuseDemande(btn){
     // Pas de backend d'envoi d'e-mail arbitraire disponible : on ouvre le
     // client mail de l'admin, pré-rempli, pour qu'il prévienne la personne en un clic.
     const subject = encodeURIComponent("Votre demande d'accès à l'application PSM");
-    const body = encodeURIComponent('Bonjour ' + nom + ',\n\nAprès examen, votre demande d\'accès à l\'application PSM n\'a pas été retenue.\n\nCordialement.');
+    const body = encodeURIComponent('Bonjour ' + (prenom || nom) + ',\n\nAprès examen, votre demande d\'accès à l\'application PSM n\'a pas été retenue.\n\nCordialement.');
     window.open('mailto:' + email + '?subject=' + subject + '&body=' + body, '_blank');
     if(msgEl){ msgEl.className = 'admin-msg ok'; msgEl.textContent = 'Demande refusée. Un brouillon d\'e-mail a été ouvert pour prévenir la personne.'; }
     if(currentEtabId) loadLocalDemandes(currentEtabId);
@@ -2232,15 +2233,16 @@ elBtnShowReq.addEventListener('click', showRequestPanel);
 elBtnBackLogin.addEventListener('click', showLoginPanel);
 
 async function doRequestAccount(){
-  const name = (elReqName.value || '').trim();
+  const nom = (elReqNom.value || '').trim().toUpperCase();
+  const prenom = (elReqPrenom.value || '').trim();
   const email = (elReqEmail.value || '').trim();
   const etabId = (elReqEtab.value || '').trim();
   const etabNom = etabId ? (elReqEtab.options[elReqEtab.selectedIndex].textContent || etabId) : '';
   const motif = (elReqMotif.value || '').trim();
 
-  if(!name || !email){
+  if(!nom || !prenom || !email){
     elRequestMsg.className = 'login-msg err';
-    elRequestMsg.textContent = 'Indiquez au moins votre nom et votre e-mail.';
+    elRequestMsg.textContent = 'Indiquez votre nom, votre prénom et votre e-mail.';
     return;
   }
   if(!etabId){
@@ -2258,6 +2260,7 @@ async function doRequestAccount(){
   elBtnSendReq.disabled = true;
   elRequestMsg.className = 'login-msg';
   elRequestMsg.textContent = 'Envoi de la demande…';
+  const nomComplet = nom + ' ' + prenom;
 
   try{
     // Une session (anonyme si besoin) est nécessaire pour pouvoir écrire la
@@ -2267,7 +2270,8 @@ async function doRequestAccount(){
     }
     const demandeRef = db.ref('demandes').push();
     await demandeRef.set({
-      nom: name,
+      nom: nom,
+      prenom: prenom,
       email: email,
       etablissementId: etabId,
       etablissementNom: etabNom,
@@ -2281,14 +2285,16 @@ async function doRequestAccount(){
     if(WEB3FORMS_ACCESS_KEY && !WEB3FORMS_ACCESS_KEY.startsWith('REMPLACER')){
       const payload = {
         access_key: WEB3FORMS_ACCESS_KEY,
-        subject: 'Demande d\'accès PSM — ' + name,
+        subject: 'Demande d\'accès PSM — ' + nomComplet,
         from_name: 'Application PSM',
-        "Nom": name,
+        "Nom": nom,
+        "Prénom": prenom,
         "E-mail du demandeur": email,
         "Établissement souhaité": etabNom,
         "Service / motif": motif || '(non précisé)',
         "message": 'Nouvelle demande d\'accès à l\'application PSM.\n\n'
-          + 'Nom : ' + name + '\n'
+          + 'Nom : ' + nom + '\n'
+          + 'Prénom : ' + prenom + '\n'
           + 'E-mail : ' + email + '\n'
           + 'Établissement souhaité : ' + etabNom + '\n'
           + 'Service / motif : ' + (motif || '(non précisé)') + '\n\n'
@@ -2309,7 +2315,7 @@ async function doRequestAccount(){
 
     elRequestMsg.className = 'login-msg ok';
     elRequestMsg.textContent = 'Demande envoyée. Vous serez averti par e-mail dès que l\'administrateur de ' + etabNom + ' l\'aura traitée.';
-    elReqName.value = ''; elReqEmail.value = ''; elReqEtab.value = ''; elReqMotif.value = '';
+    elReqNom.value = ''; elReqPrenom.value = ''; elReqEmail.value = ''; elReqEtab.value = ''; elReqMotif.value = '';
   }catch(err){
     elRequestMsg.className = 'login-msg err';
     elRequestMsg.textContent = 'Échec de l\'envoi : ' + err.message;
