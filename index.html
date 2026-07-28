@@ -789,6 +789,13 @@
         <span class="admin-msg" id="local-attach-msg"></span>
       </div>
 
+      <div class="admin-body" id="local-user-edit" style="display:none;flex-direction:column;align-items:stretch;">
+        <label style="display:block;font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--teal);margin-bottom:4px;">Modifier un utilisateur de <b id="local-edit-etab-name"></b></label>
+        <p style="font-size:12px;color:var(--muted);margin:0 0 8px;">Corriger un NOM/Prénom, ou passer un utilisateur administrateur / simple utilisateur.</p>
+        <button class="btn-secondary" id="btn-local-refresh-users" type="button" style="align-self:flex-start;">🔄 Actualiser la liste</button>
+        <div id="local-users-edit-list" style="margin-top:10px;"></div>
+      </div>
+
       <div class="admin-body" id="local-demandes-block" style="display:none;flex-direction:column;align-items:stretch;">
         <label style="display:block;font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--teal);margin-bottom:4px;">Demandes d'inscription en attente</label>
         <div id="local-demandes-list" style="font-size:13px;"></div>
@@ -840,6 +847,16 @@
             <button class="btn-secondary" id="btn-attach-user" type="button">Rattacher</button>
           </div>
           <span class="admin-msg" id="attach-msg"></span>
+        </div>
+
+        <div style="margin-top:14px;">
+          <label style="display:block;font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--teal);margin-bottom:6px;">Modifier un utilisateur</label>
+          <p style="font-size:12px;color:var(--muted);margin:0 0 8px;">Corriger un NOM/Prénom, ou passer un utilisateur administrateur / simple utilisateur d'un établissement.</p>
+          <div class="admin-lock-row">
+            <select id="edit-etab-select" style="padding:9px 10px;font-size:14px;border:1.5px solid var(--line);border-radius:8px;background:#FCFCFB;"></select>
+            <button class="btn-secondary" id="btn-super-refresh-users" type="button">Charger les utilisateurs</button>
+          </div>
+          <div id="super-users-edit-list" style="margin-top:10px;"></div>
         </div>
 
         <div style="margin-top:14px;">
@@ -1260,6 +1277,10 @@ const elLocalAttachMsg      = document.getElementById('local-attach-msg');
 const elLocalDemandesBlock  = document.getElementById('local-demandes-block');
 const elLocalDemandesList   = document.getElementById('local-demandes-list');
 const elSuperDemandesList   = document.getElementById('super-demandes-list');
+const elLocalUserEdit       = document.getElementById('local-user-edit');
+const elLocalEditEtabName   = document.getElementById('local-edit-etab-name');
+const elBtnLocalRefreshUsers= document.getElementById('btn-local-refresh-users');
+const elLocalUsersEditList  = document.getElementById('local-users-edit-list');
 // Établissement
 const elEtabLine      = document.getElementById('etab-line');
 const elEtabNameValue = document.getElementById('etab-name-value');
@@ -1276,6 +1297,9 @@ const elAttachNom         = document.getElementById('attach-nom');
 const elAttachPrenom      = document.getElementById('attach-prenom');
 const elAttachUid        = document.getElementById('attach-uid');
 const elAttachEtabSelect = document.getElementById('attach-etab-select');
+const elEditEtabSelect      = document.getElementById('edit-etab-select');
+const elBtnSuperRefreshUsers= document.getElementById('btn-super-refresh-users');
+const elSuperUsersEditList  = document.getElementById('super-users-edit-list');
 const elAttachIsAdmin    = document.getElementById('attach-is-admin');
 const elBtnAttachUser    = document.getElementById('btn-attach-user');
 const elAttachMsg        = document.getElementById('attach-msg');
@@ -1705,9 +1729,13 @@ async function resolveEtablissement(user){
     elLocalAttachEtabName.textContent = elEtabNameValue.textContent || etabId;
     elLocalDemandesBlock.style.display = 'flex';
     loadLocalDemandes(etabId);
+    elLocalUserEdit.style.display = 'flex';
+    elLocalEditEtabName.textContent = elEtabNameValue.textContent || etabId;
+    loadUsersEdit(etabId, elLocalUsersEditList, false);
   }else{
     elLocalUserAttach.style.display = 'none';
     elLocalDemandesBlock.style.display = 'none';
+    elLocalUserEdit.style.display = 'none';
   }
 
   attachDatabase(etabId);
@@ -1726,6 +1754,7 @@ async function loadEtablissementsList(){
     let listHtml = '';
     elAttachEtabSelect.innerHTML = '';
     elCreateEtabSelect.innerHTML = '';
+    elEditEtabSelect.innerHTML = '';
     ids.forEach(id=>{
       const entry = val[id] || {};
       const nom = entry.nom || id;
@@ -1738,8 +1767,8 @@ async function loadEtablissementsList(){
       opt.value = id;
       opt.textContent = nom + ' (' + id + ')';
       elAttachEtabSelect.appendChild(opt);
-      const opt2 = opt.cloneNode(true);
-      elCreateEtabSelect.appendChild(opt2);
+      elCreateEtabSelect.appendChild(opt.cloneNode(true));
+      elEditEtabSelect.appendChild(opt.cloneNode(true));
     });
     elEtabList.innerHTML = listHtml || '<span style="color:var(--muted);">Aucun établissement pour le moment.</span>';
   }catch(err){
@@ -1778,8 +1807,8 @@ async function createEtablissement(){
 }
 
 async function attachUserToEtab(){
-  const nom = (elAttachNom.value || '').trim().toUpperCase();
-  const prenom = (elAttachPrenom.value || '').trim();
+  const nom = formatNomCasse(elAttachNom.value);
+  const prenom = formatPrenomCasse(elAttachPrenom.value);
   const uid = (elAttachUid.value || '').trim();
   const etabId = elAttachEtabSelect.value;
   const asAdmin = elAttachIsAdmin.checked;
@@ -1878,8 +1907,8 @@ elBtnMigrate.addEventListener('click', migrateLegacyData);
 // Rattache un utilisateur à l'établissement de l'admin connecté (pas de choix
 // d'établissement : il est automatiquement celui de la personne qui rattache).
 async function attachUserToMyEtab(){
-  const nom = (elLocalAttachNom.value || '').trim().toUpperCase();
-  const prenom = (elLocalAttachPrenom.value || '').trim();
+  const nom = formatNomCasse(elLocalAttachNom.value);
+  const prenom = formatPrenomCasse(elLocalAttachPrenom.value);
   const uid = (elLocalAttachUid.value || '').trim();
   const asAdmin = elLocalAttachIsAdmin.checked;
   elLocalAttachMsg.className = 'admin-msg';
@@ -1947,8 +1976,8 @@ async function createAndAttachUser(email, etabId, asAdmin, msgEl, btnEl, nom, pr
   msgEl.className = 'admin-msg';
   msgEl.textContent = '';
   email = (email || '').trim();
-  nom = (nom || '').trim().toUpperCase();
-  prenom = (prenom || '').trim();
+  nom = formatNomCasse(nom);
+  prenom = formatPrenomCasse(prenom);
   if(!isValidEmail(email)){
     msgEl.className = 'admin-msg err';
     msgEl.textContent = 'Indiquez un e-mail valide.';
@@ -1966,6 +1995,7 @@ async function createAndAttachUser(email, etabId, asAdmin, msgEl, btnEl, nom, pr
     const cred = await secAuth.createUserWithEmailAndPassword(email, randomTempPassword());
     const uid = cred.user.uid;
     await db.ref('users/' + uid + '/etablissementId').set(etabId);
+    await db.ref('users/' + uid + '/email').set(email);
     if(nom) await db.ref('users/' + uid + '/nom').set(nom);
     if(prenom) await db.ref('users/' + uid + '/prenom').set(prenom);
     if(asAdmin){
@@ -2033,6 +2063,106 @@ async function loadSuperDemandes(){
   }
 }
 
+// --- Modifier un utilisateur : chargement, affichage, enregistrement ---
+
+async function loadUsersEdit(etabId, container, isSuper){
+  container.innerHTML = '<span style="color:var(--muted);font-size:12.5px;">Chargement…</span>';
+  try{
+    const [usersSnap, adminsSnap] = await Promise.all([
+      db.ref('users').orderByChild('etablissementId').equalTo(etabId).once('value'),
+      db.ref('etablissements/' + etabId + '/admins').once('value')
+    ]);
+    renderUsersEditList(container, usersSnap.val() || {}, adminsSnap.val() || {}, etabId, isSuper);
+  }catch(err){
+    container.innerHTML = '<span class="admin-msg err">Erreur de chargement : ' + escapeHtml(err.message) + '</span>';
+  }
+}
+
+function renderUsersEditList(container, usersObj, adminsObj, etabId, isSuper){
+  const uids = Object.keys(usersObj);
+  if(uids.length === 0){
+    container.innerHTML = '<span style="color:var(--muted);font-size:12.5px;">Aucun utilisateur rattaché à cet établissement.</span>';
+    return;
+  }
+  uids.sort((a,b)=>{
+    const ua = usersObj[a] || {}, ub = usersObj[b] || {};
+    return (formatNomCasse(ua.nom) + formatPrenomCasse(ua.prenom)).localeCompare(formatNomCasse(ub.nom) + formatPrenomCasse(ub.prenom), 'fr');
+  });
+  let html = '';
+  uids.forEach(uid=>{
+    const u = usersObj[uid] || {};
+    const isCurrentlyAdmin = adminsObj[uid] === true;
+    const isSelf = currentUser && currentUser.uid === uid;
+    html += '<div class="admin-lock-row user-edit-row" data-uid="' + uid + '" data-etab="' + escapeHtml(etabId) + '" style="border-top:1px dashed var(--line);padding-top:8px;margin-top:8px;">' +
+      '<input type="text" class="user-edit-nom" value="' + escapeHtml(u.nom || '') + '" placeholder="NOM" style="width:110px;padding:8px 9px;font-size:13.5px;border:1.5px solid var(--line);border-radius:8px;text-transform:uppercase;">' +
+      '<input type="text" class="user-edit-prenom" value="' + escapeHtml(u.prenom || '') + '" placeholder="Prénom" style="width:110px;padding:8px 9px;font-size:13.5px;border:1.5px solid var(--line);border-radius:8px;">' +
+      '<span style="font-size:11.5px;color:var(--muted);min-width:150px;">' + escapeHtml(u.email || ('UID ' + uid.slice(0,10) + '…')) + (isSelf ? ' <b>(vous)</b>' : '') + '</span>' +
+      '<label style="font-size:12.5px;display:flex;align-items:center;gap:4px;"><input type="checkbox" class="user-edit-admin"' + (isCurrentlyAdmin ? ' checked' : '') + '> Administrateur</label>' +
+      '<button class="btn-secondary btn-save-user" type="button">Enregistrer</button>' +
+      '<span class="admin-msg user-edit-msg"></span>' +
+      '</div>';
+  });
+  container.innerHTML = html;
+}
+
+async function saveUserEdit(row){
+  const uid = row.getAttribute('data-uid');
+  const etabId = row.getAttribute('data-etab');
+  const nom = formatNomCasse(row.querySelector('.user-edit-nom').value);
+  const prenom = formatPrenomCasse(row.querySelector('.user-edit-prenom').value);
+  const wantsAdmin = row.querySelector('.user-edit-admin').checked;
+  const msgEl = row.querySelector('.user-edit-msg');
+  const btn = row.querySelector('.btn-save-user');
+  const isSelf = currentUser && currentUser.uid === uid;
+
+  if(!wantsAdmin && isSelf){
+    const ok = window.confirm('Vous êtes sur le point de retirer vos propres droits administrateur sur cet établissement. Continuer ?');
+    if(!ok) return;
+  }
+
+  btn.disabled = true;
+  msgEl.className = 'admin-msg user-edit-msg';
+  msgEl.textContent = 'Enregistrement…';
+  try{
+    await db.ref('users/' + uid + '/nom').set(nom);
+    await db.ref('users/' + uid + '/prenom').set(prenom);
+    if(wantsAdmin){
+      await db.ref('etablissements/' + etabId + '/admins/' + uid).set(true);
+    }else{
+      await db.ref('etablissements/' + etabId + '/admins/' + uid).remove();
+    }
+    msgEl.className = 'admin-msg user-edit-msg ok';
+    msgEl.textContent = 'Enregistré ✓';
+    row.querySelector('.user-edit-nom').value = nom;
+    row.querySelector('.user-edit-prenom').value = prenom;
+  }catch(err){
+    msgEl.className = 'admin-msg user-edit-msg err';
+    msgEl.textContent = 'Erreur : ' + err.message;
+  }finally{
+    btn.disabled = false;
+  }
+}
+
+elLocalUsersEditList.addEventListener('click', ev=>{
+  const btn = ev.target.closest('.btn-save-user');
+  if(btn) saveUserEdit(btn.closest('.user-edit-row'));
+});
+elSuperUsersEditList.addEventListener('click', ev=>{
+  const btn = ev.target.closest('.btn-save-user');
+  if(btn) saveUserEdit(btn.closest('.user-edit-row'));
+});
+elBtnLocalRefreshUsers.addEventListener('click', ()=>{
+  if(currentEtabId) loadUsersEdit(currentEtabId, elLocalUsersEditList, false);
+});
+elBtnSuperRefreshUsers.addEventListener('click', ()=>{
+  const etabId = elEditEtabSelect.value;
+  if(!etabId){
+    elSuperUsersEditList.innerHTML = '<span class="admin-msg err">Choisissez un établissement.</span>';
+    return;
+  }
+  loadUsersEdit(etabId, elSuperUsersEditList, true);
+});
+
 function renderDemandesList(container, demandesObj){
   const ids = Object.keys(demandesObj).filter(id => (demandesObj[id].statut || 'attente') === 'attente');
   if(ids.length === 0){
@@ -2044,7 +2174,7 @@ function renderDemandesList(container, demandesObj){
   ids.forEach(id=>{
     const d = demandesObj[id];
     html += '<div style="padding:8px 0;border-top:1px dashed var(--line);">' +
-      '<b>' + escapeHtml(d.nom||'') + ' ' + escapeHtml(d.prenom||'') + '</b> — ' + escapeHtml(d.email||'') + '<br>' +
+      '<b>' + escapeHtml(formatNomCasse(d.nom)) + ' ' + escapeHtml(formatPrenomCasse(d.prenom)) + '</b> — ' + escapeHtml(d.email||'') + '<br>' +
       '<span style="font-size:12px;color:var(--muted);">Établissement demandé : ' + escapeHtml(d.etablissementNom || d.etablissementId || '') +
       (d.motif ? ' &middot; ' + escapeHtml(d.motif) : '') + '</span>' +
       '<div style="margin-top:6px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">' +
@@ -2349,14 +2479,25 @@ elRaz.addEventListener('click', ()=>{
 // Transforme une adresse e-mail (convention "prenom.nom@..." ou variantes
 // avec '-'/'_') en affichage "NOM Prénom". Si le format ne s'y prête pas
 // (pas de séparateur reconnu), on retombe sur l'adresse telle quelle.
+// Force "NOM" en majuscules (accents conservés).
+function formatNomCasse(s){
+  return (s || '').toString().trim().toUpperCase();
+}
+// Force "Prénom" avec uniquement l'initiale de chaque mot en majuscule
+// (gère les prénoms composés séparés par un espace ou un tiret), quelle que
+// soit la casse d'origine (ex. "SENSE", "sense" ou "Sense" -> "Sense").
+function formatPrenomCasse(s){
+  return (s || '').toString().trim().toLowerCase()
+    .replace(/(^|[\s-])(\p{L})/gu, (m, sep, lettre) => sep + lettre.toUpperCase());
+}
+
 function formatNomPrenom(email){
   if(!email) return '';
   const local = email.split('@')[0] || '';
   const parts = local.split(/[._-]+/).filter(Boolean);
   if(parts.length < 2) return email;
-  const cap = s => s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
-  const prenom = parts.slice(0, -1).map(cap).join(' ');
-  const nom = parts[parts.length - 1].toUpperCase();
+  const prenom = formatPrenomCasse(parts.slice(0, -1).join(' '));
+  const nom = formatNomCasse(parts[parts.length - 1]);
   return nom + ' ' + prenom;
 }
 
@@ -2364,8 +2505,8 @@ function formatNomPrenom(email){
 // moment d'enregistrer un prélèvement). Se base sur les champs NOM/Prénom
 // renseignés à la création du compte ; à défaut, déduit un nom depuis l'email.
 function getCurrentUserDisplayName(){
-  if(currentUserNom && currentUserPrenom) return currentUserNom + ' ' + currentUserPrenom;
-  if(currentUserNom) return currentUserNom;
+  if(currentUserNom && currentUserPrenom) return formatNomCasse(currentUserNom) + ' ' + formatPrenomCasse(currentUserPrenom);
+  if(currentUserNom) return formatNomCasse(currentUserNom);
   return formatNomPrenom((currentUser && currentUser.email) || '');
 }
 
@@ -2374,8 +2515,8 @@ function getCurrentUserDisplayName(){
 // l'ajout de cette fonctionnalité) ; à défaut, retombe sur l'e-mail déduit
 // (entrées plus anciennes).
 function formatEntreeUtilisateur(e){
-  if(e.utilisateurNom && e.utilisateurPrenom) return e.utilisateurNom + ' ' + e.utilisateurPrenom;
-  if(e.utilisateurNom) return e.utilisateurNom;
+  if(e.utilisateurNom && e.utilisateurPrenom) return formatNomCasse(e.utilisateurNom) + ' ' + formatPrenomCasse(e.utilisateurPrenom);
+  if(e.utilisateurNom) return formatNomCasse(e.utilisateurNom);
   return formatNomPrenom(e.utilisateur);
 }
 
