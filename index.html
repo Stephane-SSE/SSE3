@@ -2079,9 +2079,19 @@ async function loadUsersEdit(etabId, container, isSuper){
 }
 
 function renderUsersEditList(container, usersObj, adminsObj, etabId, isSuper){
-  const uids = Object.keys(usersObj);
+  let uids = Object.keys(usersObj);
+  const totalAvant = uids.length;
+  // Côté admin local (pas d'accès à Firebase Console), un profil sans e-mail
+  // n'est pas identifiable ni exploitable : on ne l'affiche pas. Le super-admin
+  // continue de tout voir, y compris ces profils, pour pouvoir les nettoyer
+  // (bouton Supprimer + UID copiable, cf. panneau super-admin).
+  if(!isSuper){
+    uids = uids.filter(uid => !!(usersObj[uid] || {}).email);
+  }
   if(uids.length === 0){
-    container.innerHTML = '<span style="color:var(--muted);font-size:12.5px;">Aucun utilisateur rattaché à cet établissement.</span>';
+    const masques = totalAvant - uids.length;
+    container.innerHTML = '<span style="color:var(--muted);font-size:12.5px;">Aucun utilisateur avec e-mail renseigné pour cet établissement.' +
+      (masques > 0 ? ' (' + masques + ' profil(s) sans e-mail masqué(s) — à traiter par le super-admin.)' : '') + '</span>';
     return;
   }
   uids.sort((a,b)=>{
