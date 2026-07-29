@@ -782,6 +782,7 @@
         <div class="admin-lock-row">
           <input type="text" id="local-attach-nom" placeholder="NOM" style="width:120px;padding:9px 10px;font-size:14px;border:1.5px solid var(--line);border-radius:8px;text-transform:uppercase;">
           <input type="text" id="local-attach-prenom" placeholder="Prénom" style="width:120px;padding:9px 10px;font-size:14px;border:1.5px solid var(--line);border-radius:8px;">
+          <input type="email" id="local-attach-email" placeholder="E-mail du compte" style="width:180px;padding:9px 10px;font-size:14px;border:1.5px solid var(--line);border-radius:8px;">
           <input type="text" id="local-attach-uid" placeholder="UID de l'utilisateur" style="flex:1;min-width:160px;padding:9px 10px;font-size:14px;border:1.5px solid var(--line);border-radius:8px;">
           <label style="font-size:12.5px;display:flex;align-items:center;gap:4px;"><input type="checkbox" id="local-attach-is-admin"> Administrateur de cet établissement</label>
           <button class="btn-secondary" id="btn-local-attach-user" type="button">Rattacher</button>
@@ -841,6 +842,7 @@
           <div class="admin-lock-row">
             <input type="text" id="attach-nom" placeholder="NOM" style="width:120px;padding:9px 10px;font-size:14px;border:1.5px solid var(--line);border-radius:8px;text-transform:uppercase;">
             <input type="text" id="attach-prenom" placeholder="Prénom" style="width:120px;padding:9px 10px;font-size:14px;border:1.5px solid var(--line);border-radius:8px;">
+            <input type="email" id="attach-email" placeholder="E-mail du compte" style="width:180px;padding:9px 10px;font-size:14px;border:1.5px solid var(--line);border-radius:8px;">
             <input type="text" id="attach-uid" placeholder="UID de l'utilisateur" style="flex:1;min-width:160px;padding:9px 10px;font-size:14px;border:1.5px solid var(--line);border-radius:8px;">
             <select id="attach-etab-select" style="padding:9px 10px;font-size:14px;border:1.5px solid var(--line);border-radius:8px;background:#FCFCFB;"></select>
             <label style="font-size:12.5px;display:flex;align-items:center;gap:4px;"><input type="checkbox" id="attach-is-admin"> Admin local</label>
@@ -1270,6 +1272,7 @@ const elBtnLocalCreateUser  = document.getElementById('btn-local-create-user');
 const elLocalCreateMsg      = document.getElementById('local-create-msg');
 const elLocalAttachNom      = document.getElementById('local-attach-nom');
 const elLocalAttachPrenom   = document.getElementById('local-attach-prenom');
+const elLocalAttachEmail    = document.getElementById('local-attach-email');
 const elLocalAttachUid      = document.getElementById('local-attach-uid');
 const elLocalAttachIsAdmin  = document.getElementById('local-attach-is-admin');
 const elBtnLocalAttachUser  = document.getElementById('btn-local-attach-user');
@@ -1295,6 +1298,7 @@ const elCreateEtabMsg    = document.getElementById('create-etab-msg');
 const elEtabList         = document.getElementById('etab-list');
 const elAttachNom         = document.getElementById('attach-nom');
 const elAttachPrenom      = document.getElementById('attach-prenom');
+const elAttachEmail      = document.getElementById('attach-email');
 const elAttachUid        = document.getElementById('attach-uid');
 const elAttachEtabSelect = document.getElementById('attach-etab-select');
 const elEditEtabSelect      = document.getElementById('edit-etab-select');
@@ -1834,6 +1838,7 @@ async function createEtablissement(){
 async function attachUserToEtab(){
   const nom = formatNomCasse(elAttachNom.value);
   const prenom = formatPrenomCasse(elAttachPrenom.value);
+  const email = (elAttachEmail.value || '').trim();
   const uid = (elAttachUid.value || '').trim();
   const etabId = elAttachEtabSelect.value;
   const asAdmin = elAttachIsAdmin.checked;
@@ -1849,19 +1854,27 @@ async function attachUserToEtab(){
     elAttachMsg.textContent = 'Choisissez un établissement (créez-en un si la liste est vide).';
     return;
   }
+  if(email && !isValidEmail(email)){
+    elAttachMsg.className = 'admin-msg err';
+    elAttachMsg.textContent = 'L\'adresse e-mail saisie n\'est pas valide.';
+    return;
+  }
   elBtnAttachUser.disabled = true;
   elAttachMsg.textContent = 'Rattachement…';
   try{
     await db.ref('users/' + uid + '/etablissementId').set(etabId);
     if(nom) await db.ref('users/' + uid + '/nom').set(nom);
     if(prenom) await db.ref('users/' + uid + '/prenom').set(prenom);
+    if(email) await db.ref('users/' + uid + '/email').set(email);
     if(asAdmin){
       await db.ref('etablissements/' + etabId + '/admins/' + uid).set(true);
     }
     elAttachMsg.className = 'admin-msg ok';
-    elAttachMsg.textContent = 'Utilisateur rattaché à ' + etabId + (asAdmin ? ' (admin local)' : '') + '.';
+    elAttachMsg.textContent = 'Utilisateur rattaché à ' + etabId + (asAdmin ? ' (admin local)' : '') + '.' +
+      (!email ? ' Pensez à renseigner son e-mail pour qu\'il apparaisse dans les listes de modification.' : '');
     elAttachNom.value = '';
     elAttachPrenom.value = '';
+    elAttachEmail.value = '';
     elAttachUid.value = '';
     elAttachIsAdmin.checked = false;
     loadEtablissementsList();
@@ -1934,6 +1947,7 @@ elBtnMigrate.addEventListener('click', migrateLegacyData);
 async function attachUserToMyEtab(){
   const nom = formatNomCasse(elLocalAttachNom.value);
   const prenom = formatPrenomCasse(elLocalAttachPrenom.value);
+  const email = (elLocalAttachEmail.value || '').trim();
   const uid = (elLocalAttachUid.value || '').trim();
   const asAdmin = elLocalAttachIsAdmin.checked;
   elLocalAttachMsg.className = 'admin-msg';
@@ -1948,19 +1962,27 @@ async function attachUserToMyEtab(){
     elLocalAttachMsg.textContent = 'Indiquez un UID valide (Console Firebase > Authentication).';
     return;
   }
+  if(email && !isValidEmail(email)){
+    elLocalAttachMsg.className = 'admin-msg err';
+    elLocalAttachMsg.textContent = 'L\'adresse e-mail saisie n\'est pas valide.';
+    return;
+  }
   elBtnLocalAttachUser.disabled = true;
   elLocalAttachMsg.textContent = 'Rattachement…';
   try{
     await db.ref('users/' + uid + '/etablissementId').set(currentEtabId);
     if(nom) await db.ref('users/' + uid + '/nom').set(nom);
     if(prenom) await db.ref('users/' + uid + '/prenom').set(prenom);
+    if(email) await db.ref('users/' + uid + '/email').set(email);
     if(asAdmin){
       await db.ref('etablissements/' + currentEtabId + '/admins/' + uid).set(true);
     }
     elLocalAttachMsg.className = 'admin-msg ok';
-    elLocalAttachMsg.textContent = 'Utilisateur rattaché à ' + (elEtabNameValue.textContent || currentEtabId) + (asAdmin ? ' (administrateur)' : '') + '.';
+    elLocalAttachMsg.textContent = 'Utilisateur rattaché à ' + (elEtabNameValue.textContent || currentEtabId) + (asAdmin ? ' (administrateur)' : '') + '.' +
+      (!email ? ' Pensez à renseigner son e-mail pour qu\'il apparaisse dans votre liste de modification.' : '');
     elLocalAttachNom.value = '';
     elLocalAttachPrenom.value = '';
+    elLocalAttachEmail.value = '';
     elLocalAttachUid.value = '';
     elLocalAttachIsAdmin.checked = false;
   }catch(err){
@@ -2106,17 +2128,24 @@ async function loadUsersEdit(etabId, container, isSuper){
 function renderUsersEditList(container, usersObj, adminsObj, etabId, isSuper){
   let uids = Object.keys(usersObj);
   const totalAvant = uids.length;
-  // Côté admin local (pas d'accès à Firebase Console), un profil sans e-mail
-  // n'est pas identifiable ni exploitable : on ne l'affiche pas. Le super-admin
-  // continue de tout voir, y compris ces profils, pour pouvoir les nettoyer
-  // (bouton Supprimer + UID copiable, cf. panneau super-admin).
+  // Côté admin local (pas d'accès à Firebase Console), un profil totalement
+  // vide (ni e-mail, ni nom, ni prénom) n'est pas identifiable : on ne
+  // l'affiche pas. En revanche, un profil qui a un nom/prénom mais dont
+  // l'e-mail n'a pas été enregistré (ex. compte rattaché par UID avant
+  // l'ajout de ce champ) reste affiché : l'admin local peut désormais
+  // compléter l'e-mail manquant directement depuis cette liste. Le
+  // super-admin continue de tout voir, y compris les profils totalement
+  // vides, pour pouvoir les nettoyer (bouton Supprimer + UID copiable).
   if(!isSuper){
-    uids = uids.filter(uid => !!(usersObj[uid] || {}).email);
+    uids = uids.filter(uid => {
+      const u = usersObj[uid] || {};
+      return !!(u.email || u.nom || u.prenom);
+    });
   }
   if(uids.length === 0){
     const masques = totalAvant - uids.length;
-    container.innerHTML = '<span style="color:var(--muted);font-size:12.5px;">Aucun utilisateur avec e-mail renseigné pour cet établissement.' +
-      (masques > 0 ? ' (' + masques + ' profil(s) sans e-mail masqué(s) — à traiter par le super-admin.)' : '') + '</span>';
+    container.innerHTML = '<span style="color:var(--muted);font-size:12.5px;">Aucun utilisateur identifiable pour cet établissement.' +
+      (masques > 0 ? ' (' + masques + ' profil(s) totalement vide(s) masqué(s) — à traiter par le super-admin.)' : '') + '</span>';
     return;
   }
   uids.sort((a,b)=>{
@@ -2129,15 +2158,13 @@ function renderUsersEditList(container, usersObj, adminsObj, etabId, isSuper){
     const isCurrentlyAdmin = adminsObj[uid] === true;
     const isSelf = currentUser && currentUser.uid === uid;
     const sansProfil = !u.nom && !u.prenom;
+    const sansEmail = !u.email;
     html += '<div class="admin-lock-row user-edit-row' + (sansProfil ? ' user-edit-row-empty' : '') + '" data-uid="' + uid + '" data-etab="' + escapeHtml(etabId) + '" style="border-top:1px dashed var(--line);padding-top:8px;margin-top:8px;' + (sansProfil ? 'background:#FFF8EF;' : '') + '">' +
       '<input type="text" class="user-edit-nom" value="' + escapeHtml(u.nom || '') + '" placeholder="NOM" style="width:110px;padding:8px 9px;font-size:13.5px;border:1.5px solid var(--line);border-radius:8px;text-transform:uppercase;">' +
       '<input type="text" class="user-edit-prenom" value="' + escapeHtml(u.prenom || '') + '" placeholder="Prénom" style="width:110px;padding:8px 9px;font-size:13.5px;border:1.5px solid var(--line);border-radius:8px;">' +
-      '<span style="font-size:11px;color:var(--muted);min-width:170px;">' +
-        (u.email ? escapeHtml(u.email) : (isSuper
-            ? '<span class="user-edit-uid" title="Cliquer pour copier l\'UID complet" style="cursor:pointer;text-decoration:underline dotted;">UID ' + uid + '</span>'
-            : '<span style="font-style:italic;">Profil sans e-mail enregistré</span>')) +
-        (isSelf ? ' <b>(vous)</b>' : '') +
-      '</span>' +
+      '<input type="email" class="user-edit-email" value="' + escapeHtml(u.email || '') + '" placeholder="E-mail' + (sansEmail ? ' (à compléter)' : '') + '" style="width:180px;padding:8px 9px;font-size:13.5px;border:1.5px solid ' + (sansEmail ? 'var(--amber)' : 'var(--line)') + ';border-radius:8px;">' +
+      (isSuper && sansEmail ? '<span class="user-edit-uid" title="Cliquer pour copier l\'UID complet" style="font-size:11px;color:var(--muted);cursor:pointer;text-decoration:underline dotted;">UID ' + uid + '</span>' : '') +
+      (isSelf ? ' <b style="font-size:11px;">(vous)</b>' : '') +
       '<label style="font-size:12.5px;display:flex;align-items:center;gap:4px;"><input type="checkbox" class="user-edit-admin"' + (isCurrentlyAdmin ? ' checked' : '') + '> Administrateur</label>' +
       '<button class="btn-secondary btn-save-user" type="button">Enregistrer</button>' +
       '<button class="btn-secondary btn-delete-user" type="button" style="color:#B3261E;border-color:#E8B4AF;">Supprimer</button>' +
@@ -2152,10 +2179,17 @@ async function saveUserEdit(row){
   const etabId = row.getAttribute('data-etab');
   const nom = formatNomCasse(row.querySelector('.user-edit-nom').value);
   const prenom = formatPrenomCasse(row.querySelector('.user-edit-prenom').value);
+  const email = (row.querySelector('.user-edit-email').value || '').trim();
   const wantsAdmin = row.querySelector('.user-edit-admin').checked;
   const msgEl = row.querySelector('.user-edit-msg');
   const btn = row.querySelector('.btn-save-user');
   const isSelf = currentUser && currentUser.uid === uid;
+
+  if(email && !isValidEmail(email)){
+    msgEl.className = 'admin-msg user-edit-msg err';
+    msgEl.textContent = 'L\'adresse e-mail saisie n\'est pas valide.';
+    return;
+  }
 
   if(!wantsAdmin && isSelf){
     const ok = window.confirm('Vous êtes sur le point de retirer vos propres droits administrateur sur cet établissement. Continuer ?');
@@ -2168,6 +2202,7 @@ async function saveUserEdit(row){
   try{
     await db.ref('users/' + uid + '/nom').set(nom);
     await db.ref('users/' + uid + '/prenom').set(prenom);
+    await db.ref('users/' + uid + '/email').set(email || null);
     if(wantsAdmin){
       await db.ref('etablissements/' + etabId + '/admins/' + uid).set(true);
     }else{
@@ -2177,6 +2212,7 @@ async function saveUserEdit(row){
     msgEl.textContent = 'Enregistré ✓';
     row.querySelector('.user-edit-nom').value = nom;
     row.querySelector('.user-edit-prenom').value = prenom;
+    row.querySelector('.user-edit-email').value = email;
   }catch(err){
     msgEl.className = 'admin-msg user-edit-msg err';
     msgEl.textContent = 'Erreur : ' + err.message;
