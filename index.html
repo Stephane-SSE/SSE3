@@ -1588,7 +1588,32 @@ async function seedFromJsonIfEmpty(){
   await produitsRef.set(obj);
 }
 
+// Horodatage serveur, avec repli sur l'heure locale si la bibliothèque
+// Firebase Database n'est pas (encore) chargée dans le navigateur de
+// l'utilisateur (script bloqué, réseau lent, etc.). Évite un plantage du
+// type « undefined is not object (evaluating 'firebase.database.ServerValue') ».
+function serverTimestamp(){
+  if(window.firebase && firebase.database && firebase.database.ServerValue){
+    return firebase.database.ServerValue.TIMESTAMP;
+  }
+  return Date.now();
+}
+
+// Vérifie que les bibliothèques Firebase nécessaires sont bien chargées
+// avant de tenter quoi que ce soit. Si l'une d'elles manque (script non
+// chargé chez l'utilisateur), on affiche un message clair plutôt que de
+// laisser échouer une action plus tard avec une erreur peu compréhensible.
+function checkFirebaseLibsLoaded(){
+  if(window.firebase && firebase.app && firebase.auth && firebase.database){
+    return true;
+  }
+  setStatus('offline');
+  showLoginError('Le chargement de l\'application a échoué (bibliothèques Firebase indisponibles). Vérifiez votre connexion internet et rechargez la page.');
+  return false;
+}
+
 function initFirebase(){
+  if(!checkFirebaseLibsLoaded()) return;
   try{
     firebase.initializeApp(FIREBASE_CONFIG);
   }catch(e){
@@ -2478,7 +2503,7 @@ async function doRequestAccount(){
       etablissementNom: etabNom,
       motif: motif || '',
       statut: 'attente',
-      dateCreation: firebase.database.ServerValue.TIMESTAMP
+      dateCreation: serverTimestamp()
     });
 
     // Notification informative par e-mail (facultative si Web3Forms configuré) —
@@ -2805,7 +2830,7 @@ elResults.addEventListener('click', (ev)=>{
       // par jour et par établissement, alimentée par tous les utilisateurs.
       if(currentEtabId){
         const entry = {
-          dateHeure: firebase.database.ServerValue.TIMESTAMP,
+          dateHeure: serverTimestamp(),
           malle: produitSnapshot.malle,
           libelle: produitSnapshot.libelle,
           produit_ref: produitSnapshot.produit_ref,
