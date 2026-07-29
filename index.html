@@ -2098,7 +2098,9 @@ function renderUsersEditList(container, usersObj, adminsObj, etabId, isSuper){
       '<input type="text" class="user-edit-nom" value="' + escapeHtml(u.nom || '') + '" placeholder="NOM" style="width:110px;padding:8px 9px;font-size:13.5px;border:1.5px solid var(--line);border-radius:8px;text-transform:uppercase;">' +
       '<input type="text" class="user-edit-prenom" value="' + escapeHtml(u.prenom || '') + '" placeholder="Prénom" style="width:110px;padding:8px 9px;font-size:13.5px;border:1.5px solid var(--line);border-radius:8px;">' +
       '<span style="font-size:11px;color:var(--muted);min-width:170px;">' +
-        (u.email ? escapeHtml(u.email) : '<span class="user-edit-uid" title="Cliquer pour copier l\'UID complet" style="cursor:pointer;text-decoration:underline dotted;">UID ' + uid + '</span>') +
+        (u.email ? escapeHtml(u.email) : (isSuper
+            ? '<span class="user-edit-uid" title="Cliquer pour copier l\'UID complet" style="cursor:pointer;text-decoration:underline dotted;">UID ' + uid + '</span>'
+            : '<span style="font-style:italic;">Profil sans e-mail enregistré</span>')) +
         (isSelf ? ' <b>(vous)</b>' : '') +
       '</span>' +
       '<label style="font-size:12.5px;display:flex;align-items:center;gap:4px;"><input type="checkbox" class="user-edit-admin"' + (isCurrentlyAdmin ? ' checked' : '') + '> Administrateur</label>' +
