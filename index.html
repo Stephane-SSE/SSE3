@@ -2093,12 +2093,17 @@ function renderUsersEditList(container, usersObj, adminsObj, etabId, isSuper){
     const u = usersObj[uid] || {};
     const isCurrentlyAdmin = adminsObj[uid] === true;
     const isSelf = currentUser && currentUser.uid === uid;
-    html += '<div class="admin-lock-row user-edit-row" data-uid="' + uid + '" data-etab="' + escapeHtml(etabId) + '" style="border-top:1px dashed var(--line);padding-top:8px;margin-top:8px;">' +
+    const sansProfil = !u.nom && !u.prenom;
+    html += '<div class="admin-lock-row user-edit-row' + (sansProfil ? ' user-edit-row-empty' : '') + '" data-uid="' + uid + '" data-etab="' + escapeHtml(etabId) + '" style="border-top:1px dashed var(--line);padding-top:8px;margin-top:8px;' + (sansProfil ? 'background:#FFF8EF;' : '') + '">' +
       '<input type="text" class="user-edit-nom" value="' + escapeHtml(u.nom || '') + '" placeholder="NOM" style="width:110px;padding:8px 9px;font-size:13.5px;border:1.5px solid var(--line);border-radius:8px;text-transform:uppercase;">' +
       '<input type="text" class="user-edit-prenom" value="' + escapeHtml(u.prenom || '') + '" placeholder="Prénom" style="width:110px;padding:8px 9px;font-size:13.5px;border:1.5px solid var(--line);border-radius:8px;">' +
-      '<span style="font-size:11.5px;color:var(--muted);min-width:150px;">' + escapeHtml(u.email || ('UID ' + uid.slice(0,10) + '…')) + (isSelf ? ' <b>(vous)</b>' : '') + '</span>' +
+      '<span style="font-size:11px;color:var(--muted);min-width:170px;">' +
+        (u.email ? escapeHtml(u.email) : '<span class="user-edit-uid" title="Cliquer pour copier l\'UID complet" style="cursor:pointer;text-decoration:underline dotted;">UID ' + uid + '</span>') +
+        (isSelf ? ' <b>(vous)</b>' : '') +
+      '</span>' +
       '<label style="font-size:12.5px;display:flex;align-items:center;gap:4px;"><input type="checkbox" class="user-edit-admin"' + (isCurrentlyAdmin ? ' checked' : '') + '> Administrateur</label>' +
       '<button class="btn-secondary btn-save-user" type="button">Enregistrer</button>' +
+      '<button class="btn-secondary btn-delete-user" type="button" style="color:#B3261E;border-color:#E8B4AF;">Supprimer</button>' +
       '<span class="admin-msg user-edit-msg"></span>' +
       '</div>';
   });
@@ -2143,14 +2148,68 @@ async function saveUserEdit(row){
   }
 }
 
-elLocalUsersEditList.addEventListener('click', ev=>{
-  const btn = ev.target.closest('.btn-save-user');
-  if(btn) saveUserEdit(btn.closest('.user-edit-row'));
-});
-elSuperUsersEditList.addEventListener('click', ev=>{
-  const btn = ev.target.closest('.btn-save-user');
-  if(btn) saveUserEdit(btn.closest('.user-edit-row'));
-});
+// Supprime le profil (/users/{uid} + statut admin) de cet établissement.
+// Ne supprime PAS le compte Firebase Authentication sous-jacent : si vous
+// voulez aussi libérer/retirer complètement le compte, il faut le faire
+// séparément dans Firebase Console > Authentication > Users (recherche par
+// UID), en vérifiant au passage sa colonne "Dernière connexion".
+async function deleteUserFromEtab(row){
+  const uid = row.getAttribute('data-uid');
+  const etabId = row.getAttribute('data-etab');
+  const isSelf = currentUser && currentUser.uid === uid;
+  const nomAffiche = formatNomCasse(row.querySelector('.user-edit-nom').value) + ' ' + formatPrenomCasse(row.querySelector('.user-edit-prenom').value);
+  const msgEl = row.querySelector('.user-edit-msg');
+  const btn = row.querySelector('.btn-delete-user');
+
+  if(isSelf){
+    alert('Vous ne pouvez pas vous supprimer vous-même depuis cet écran.');
+    return;
+  }
+  const ok = window.confirm(
+    'Supprimer le profil "' + (nomAffiche.trim() || uid) + '" de cet établissement ?\n\n' +
+    'Cela retire son accès à cet établissement (produits, prélèvements, statut admin). ' +
+    'Le compte Firebase Authentication lui-même n\'est PAS supprimé — il restera visible ' +
+    '(mais inutilisable ici) dans Console Firebase > Authentication tant que vous ne le ' +
+    'supprimez pas aussi de ce côté-là.'
+  );
+  if(!ok) return;
+
+  btn.disabled = true;
+  msgEl.className = 'admin-msg user-edit-msg';
+  msgEl.textContent = 'Suppression…';
+  try{
+    await db.ref('etablissements/' + etabId + '/admins/' + uid).remove();
+    await db.ref('users/' + uid).remove();
+    row.remove();
+  }catch(err){
+    msgEl.className = 'admin-msg user-edit-msg err';
+    msgEl.textContent = 'Erreur : ' + err.message;
+    btn.disabled = false;
+  }
+}
+
+function wireUsersEditList(el){
+  el.addEventListener('click', ev=>{
+    const saveBtn = ev.target.closest('.btn-save-user');
+    if(saveBtn){ saveUserEdit(saveBtn.closest('.user-edit-row')); return; }
+    const delBtn = ev.target.closest('.btn-delete-user');
+    if(delBtn){ deleteUserFromEtab(delBtn.closest('.user-edit-row')); return; }
+    const uidSpan = ev.target.closest('.user-edit-uid');
+    if(uidSpan){
+      const uid = uidSpan.closest('.user-edit-row').getAttribute('data-uid');
+      if(navigator.clipboard && navigator.clipboard.writeText){
+        navigator.clipboard.writeText(uid).then(()=>{
+          const old = uidSpan.textContent;
+          uidSpan.textContent = 'UID copié ✓';
+          setTimeout(()=>{ uidSpan.textContent = old; }, 1200);
+        }).catch(()=>{});
+      }
+    }
+  });
+}
+wireUsersEditList(elLocalUsersEditList);
+wireUsersEditList(elSuperUsersEditList);
+
 elBtnLocalRefreshUsers.addEventListener('click', ()=>{
   if(currentEtabId) loadUsersEdit(currentEtabId, elLocalUsersEditList, false);
 });
