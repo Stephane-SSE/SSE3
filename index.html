@@ -778,17 +778,7 @@
         </div>
         <span class="admin-msg" id="local-create-msg"></span>
 
-        <p style="font-size:11.5px;color:var(--muted);margin:14px 0 4px;">Ou rattacher un compte déjà existant (créé ailleurs) :
-          <a href="#" id="link-local-console" target="_blank" rel="noopener" style="color:var(--teal);font-weight:700;">🔎 Trouver l'UID dans la Console Firebase</a>
-        </p>
-        <div class="admin-lock-row">
-          <input type="text" id="local-attach-nom" placeholder="NOM" style="width:120px;padding:9px 10px;font-size:14px;border:1.5px solid var(--line);border-radius:8px;text-transform:uppercase;">
-          <input type="text" id="local-attach-prenom" placeholder="Prénom" style="width:120px;padding:9px 10px;font-size:14px;border:1.5px solid var(--line);border-radius:8px;">
-          <input type="text" id="local-attach-uid" placeholder="UID de l'utilisateur" style="flex:1;min-width:160px;padding:9px 10px;font-size:14px;border:1.5px solid var(--line);border-radius:8px;">
-          <label style="font-size:12.5px;display:flex;align-items:center;gap:4px;"><input type="checkbox" id="local-attach-is-admin"> Administrateur de cet établissement</label>
-          <button class="btn-secondary" id="btn-local-attach-user" type="button">Rattacher</button>
-        </div>
-        <span class="admin-msg" id="local-attach-msg"></span>
+        <p style="font-size:11.5px;color:var(--muted);margin:14px 0 4px;">Cet e-mail correspond peut-être à un compte déjà existant ? Seul le super-administrateur peut retrouver un UID via la Console Firebase et rattacher un compte existant à un établissement — transmettez-lui l'e-mail et l'établissement concerné.</p>
       </div>
 
       <div class="admin-body" id="local-user-edit" style="display:none;flex-direction:column;align-items:stretch;">
@@ -1277,15 +1267,7 @@ const elLocalCreateEmail    = document.getElementById('local-create-email');
 const elLocalCreateIsAdmin  = document.getElementById('local-create-is-admin');
 const elBtnLocalCreateUser  = document.getElementById('btn-local-create-user');
 const elLocalCreateMsg      = document.getElementById('local-create-msg');
-const elLocalAttachNom      = document.getElementById('local-attach-nom');
-const elLocalAttachPrenom   = document.getElementById('local-attach-prenom');
-const elLocalAttachUid      = document.getElementById('local-attach-uid');
-const elLocalAttachIsAdmin  = document.getElementById('local-attach-is-admin');
-const elBtnLocalAttachUser  = document.getElementById('btn-local-attach-user');
-const elLocalAttachMsg      = document.getElementById('local-attach-msg');
-const elLinkLocalConsole    = document.getElementById('link-local-console');
 const elLinkSuperConsole    = document.getElementById('link-super-console');
-if(elLinkLocalConsole) elLinkLocalConsole.href = FIREBASE_CONSOLE_USERS_URL;
 if(elLinkSuperConsole) elLinkSuperConsole.href = FIREBASE_CONSOLE_USERS_URL;
 const elLocalDemandesBlock  = document.getElementById('local-demandes-block');
 const elLocalDemandesList   = document.getElementById('local-demandes-list');
@@ -1846,8 +1828,16 @@ async function attachUserToEtab(){
     if(asAdmin){
       await db.ref('etablissements/' + etabId + '/admins/' + uid).set(true);
     }
+    // Si le super-admin rattache son PROPRE compte (cas du §7 de la doc :
+    // usage quotidien), on le marque "masque" pour qu'il n'apparaisse jamais
+    // dans la liste "Modifier un utilisateur" consultée par les admins locaux.
+    const estMonPropreCompte = isSuperAdmin && currentUser && currentUser.uid === uid;
+    if(estMonPropreCompte){
+      await db.ref('users/' + uid + '/masque').set(true);
+    }
     elAttachMsg.className = 'admin-msg ok';
-    elAttachMsg.textContent = 'Utilisateur rattaché à ' + etabId + (asAdmin ? ' (admin local)' : '') + '.';
+    elAttachMsg.textContent = 'Utilisateur rattaché à ' + etabId + (asAdmin ? ' (admin local)' : '') +
+      (estMonPropreCompte ? '. Votre propre compte reste masqué pour les admins locaux.' : '.');
     elAttachNom.value = '';
     elAttachPrenom.value = '';
     elAttachUid.value = '';
@@ -1917,48 +1907,10 @@ elBtnCreateEtab.addEventListener('click', createEtablissement);
 elBtnAttachUser.addEventListener('click', attachUserToEtab);
 elBtnMigrate.addEventListener('click', migrateLegacyData);
 
-// Rattache un utilisateur à l'établissement de l'admin connecté (pas de choix
-// d'établissement : il est automatiquement celui de la personne qui rattache).
-async function attachUserToMyEtab(){
-  const nom = formatNomCasse(elLocalAttachNom.value);
-  const prenom = formatPrenomCasse(elLocalAttachPrenom.value);
-  const uid = (elLocalAttachUid.value || '').trim();
-  const asAdmin = elLocalAttachIsAdmin.checked;
-  elLocalAttachMsg.className = 'admin-msg';
-  elLocalAttachMsg.textContent = '';
-  if(!currentEtabId){
-    elLocalAttachMsg.className = 'admin-msg err';
-    elLocalAttachMsg.textContent = 'Aucun établissement actif sur ce compte.';
-    return;
-  }
-  if(!uid || uid.length < 10){
-    elLocalAttachMsg.className = 'admin-msg err';
-    elLocalAttachMsg.textContent = 'Indiquez un UID valide (Console Firebase > Authentication).';
-    return;
-  }
-  elBtnLocalAttachUser.disabled = true;
-  elLocalAttachMsg.textContent = 'Rattachement…';
-  try{
-    await db.ref('users/' + uid + '/etablissementId').set(currentEtabId);
-    if(nom) await db.ref('users/' + uid + '/nom').set(nom);
-    if(prenom) await db.ref('users/' + uid + '/prenom').set(prenom);
-    if(asAdmin){
-      await db.ref('etablissements/' + currentEtabId + '/admins/' + uid).set(true);
-    }
-    elLocalAttachMsg.className = 'admin-msg ok';
-    elLocalAttachMsg.textContent = 'Utilisateur rattaché à ' + (elEtabNameValue.textContent || currentEtabId) + (asAdmin ? ' (administrateur)' : '') + '.';
-    elLocalAttachNom.value = '';
-    elLocalAttachPrenom.value = '';
-    elLocalAttachUid.value = '';
-    elLocalAttachIsAdmin.checked = false;
-  }catch(err){
-    elLocalAttachMsg.className = 'admin-msg err';
-    elLocalAttachMsg.textContent = 'Erreur : ' + err.message;
-  }finally{
-    elBtnLocalAttachUser.disabled = false;
-  }
-}
-elBtnLocalAttachUser.addEventListener('click', attachUserToMyEtab);
+// NB : le rattachement par UID d'un compte déjà existant est réservé au
+// super-administrateur (panneau « Super-administration »), qui est seul à
+// avoir accès à la Console Firebase permettant de retrouver un UID. Un admin
+// local ne peut pas manipuler d'UID.
 
 // --- Création de compte utilisateur sans quitter la session admin en cours ---
 // Une "app" Firebase secondaire isole la session du compte fraîchement créé :
@@ -2022,19 +1974,14 @@ async function createAndAttachUser(email, etabId, asAdmin, msgEl, btnEl, nom, pr
   }catch(err){
     msgEl.className = 'admin-msg err';
     if(err.code === 'auth/email-already-in-use'){
+      // Seul le super-administrateur a accès aux UID (Console Firebase) : le
+      // contenu du message dépend donc entièrement du contexte d'appel via
+      // onEmailExists (voir prefillSuperAttach vs. le rappel "admin local").
       if(typeof onEmailExists === 'function'){
-        try{ onEmailExists({ email: email, nom: nom, prenom: prenom, asAdmin: asAdmin }); }catch(e){ /* non bloquant */ }
+        try{ onEmailExists({ email: email, nom: nom, prenom: prenom, asAdmin: asAdmin, msgEl: msgEl }); }catch(e){ /* non bloquant */ }
+      }else{
+        msgEl.textContent = 'Un compte existe déjà avec cet e-mail.';
       }
-      let copieOk = false;
-      if(navigator.clipboard && navigator.clipboard.writeText){
-        navigator.clipboard.writeText(email).then(()=>{}).catch(()=>{});
-        copieOk = true;
-      }
-      msgEl.innerHTML = 'Un compte existe déjà avec cet e-mail. Le formulaire de rattachement ci-dessous a été pré-rempli (NOM/Prénom' +
-        (asAdmin ? '/Administrateur' : '') + ') : ouvrez la ' +
-        '<a href="' + FIREBASE_CONSOLE_USERS_URL + '" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline;">Console Firebase</a>' +
-        ', recherchez « ' + escapeHtml(email) + ' »' + (copieOk ? ' (copié dans le presse-papiers)' : '') +
-        ', copiez son UID, collez-le dans le champ « UID de l\'utilisateur » puis cliquez sur « Rattacher ».';
     }else{
       msgEl.textContent = 'Erreur : ' + err.message;
     }
@@ -2043,19 +1990,16 @@ async function createAndAttachUser(email, etabId, asAdmin, msgEl, btnEl, nom, pr
   }
 }
 
-function prefillLocalAttach({ nom, prenom, asAdmin }){
-  elLocalAttachNom.value = formatNomCasse(nom || '');
-  elLocalAttachPrenom.value = formatPrenomCasse(prenom || '');
-  elLocalAttachIsAdmin.checked = !!asAdmin;
-  elLocalAttachUid.value = '';
-  elLocalAttachMsg.className = 'admin-msg';
-  elLocalAttachMsg.textContent = '';
-  elLocalAttachUid.focus();
-  elLocalAttachUid.scrollIntoView({ behavior: 'smooth', block: 'center' });
+// Un admin local n'a jamais accès aux UID (seul le super-administrateur peut
+// consulter la Console Firebase) : on se contente de l'orienter vers lui,
+// sans lien ni indice technique.
+function notifyLocalEmailExists({ email }){
+  elLocalCreateMsg.className = 'admin-msg err';
+  elLocalCreateMsg.textContent = 'Un compte existe déjà avec cet e-mail (' + email + '). Seul le super-administrateur peut le rattacher à un établissement : transmettez-lui l\'e-mail et l\'établissement concerné.';
 }
 
 elBtnLocalCreateUser.addEventListener('click', ()=>{
-  createAndAttachUser(elLocalCreateEmail.value, currentEtabId, elLocalCreateIsAdmin.checked, elLocalCreateMsg, elBtnLocalCreateUser, elLocalCreateNom.value, elLocalCreatePrenom.value, prefillLocalAttach)
+  createAndAttachUser(elLocalCreateEmail.value, currentEtabId, elLocalCreateIsAdmin.checked, elLocalCreateMsg, elBtnLocalCreateUser, elLocalCreateNom.value, elLocalCreatePrenom.value, notifyLocalEmailExists)
     .then(()=>{
       if(elLocalCreateMsg.className.indexOf('ok') !== -1){
         elLocalCreateNom.value = '';
@@ -2136,7 +2080,10 @@ function renderUsersEditList(container, usersObj, adminsObj, etabId, isSuper){
   // continue de tout voir, y compris ces profils, pour pouvoir les nettoyer
   // (bouton Supprimer + UID copiable, cf. panneau super-admin).
   if(!isSuper){
-    uids = uids.filter(uid => !!(usersObj[uid] || {}).email);
+    // Un profil sans e-mail n'est pas exploitable par un admin local ; un
+    // profil marqué "masque" est le compte du super-administrateur lui-même
+    // (jamais montré à un admin local, cf. attachUserToEtab).
+    uids = uids.filter(uid => !!(usersObj[uid] || {}).email && !(usersObj[uid] || {}).masque);
   }
   if(uids.length === 0){
     const masques = totalAvant - uids.length;
@@ -2324,7 +2271,10 @@ async function handleApproveDemande(btn){
   btn.disabled = true;
 
   const tempMsgEl = msgEl || { className: '', textContent: '' };
-  const onEmailExists = isSuperAdmin ? prefillSuperAttach(etabId) : prefillLocalAttach;
+  const onEmailExists = isSuperAdmin ? prefillSuperAttach(etabId) : (({ email: em })=>{
+    tempMsgEl.className = 'admin-msg err';
+    tempMsgEl.textContent = 'Un compte existe déjà avec cet e-mail (' + em + '). Seul le super-administrateur peut le rattacher : transmettez-lui la demande.';
+  });
   await createAndAttachUser(email, etabId, asAdmin, tempMsgEl, btn, nom, prenom, onEmailExists);
 
   if(tempMsgEl.className.indexOf('ok') !== -1){
