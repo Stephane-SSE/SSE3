@@ -760,10 +760,19 @@
         <span class="admin-note">La mise à jour des données est réservée aux administrateurs. Votre compte n'a pas ce rôle.</span>
       </div>
 
-      <div class="admin-body" id="admin-allowed" style="display:none;">
-        <button class="btn-secondary" id="btn-import" type="button">Charger un fichier Liste_PSM.xlsx</button>
-        <input type="file" id="file-import" accept=".xlsx">
-        <span class="admin-msg" id="import-msg">Remplace les données de cet établissement pour tous ses utilisateurs (quantités remises au niveau du fichier importé).</span>
+      <div class="admin-body" id="admin-allowed" style="display:none;flex-direction:column;align-items:stretch;">
+        <div id="import-target-row" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:8px;">
+          <label style="font-size:12.5px;color:var(--muted);white-space:nowrap;">Établissement cible de l'import :</label>
+          <select id="import-target-etab" style="display:none;padding:9px 10px;font-size:14px;border:1.5px solid var(--line);border-radius:8px;background:#FCFCFB;">
+            <option value="" selected disabled>— Choisir un établissement —</option>
+          </select>
+          <b id="import-target-etab-fixed" style="display:none;color:var(--navy);"></b>
+        </div>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+          <button class="btn-secondary" id="btn-import" type="button">Charger un fichier Liste_PSM.xlsx</button>
+          <input type="file" id="file-import" accept=".xlsx">
+        </div>
+        <span class="admin-msg" id="import-msg" style="margin-top:6px;">Remplace les données de l'établissement ci-dessus pour tous ses utilisateurs (quantités remises au niveau du fichier importé). L'ancien contenu est sauvegardé automatiquement avant l'écrasement.</span>
       </div>
 
       <div class="admin-body" id="local-user-attach" style="display:none;flex-direction:column;align-items:stretch;">
@@ -778,7 +787,17 @@
         </div>
         <span class="admin-msg" id="local-create-msg"></span>
 
-        <p style="font-size:11.5px;color:var(--muted);margin:14px 0 4px;">Cet e-mail correspond peut-être à un compte déjà existant ? Seul le super-administrateur peut retrouver un UID via la Console Firebase et rattacher un compte existant à un établissement — transmettez-lui l'e-mail et l'établissement concerné.</p>
+        <p style="font-size:11.5px;color:var(--muted);margin:14px 0 4px;">Ou rattacher un compte déjà existant (créé ailleurs) :
+          <a href="#" id="link-local-console" target="_blank" rel="noopener" style="color:var(--teal);font-weight:700;">🔎 Trouver l'UID dans la Console Firebase</a>
+        </p>
+        <div class="admin-lock-row">
+          <input type="text" id="local-attach-nom" placeholder="NOM" style="width:120px;padding:9px 10px;font-size:14px;border:1.5px solid var(--line);border-radius:8px;text-transform:uppercase;">
+          <input type="text" id="local-attach-prenom" placeholder="Prénom" style="width:120px;padding:9px 10px;font-size:14px;border:1.5px solid var(--line);border-radius:8px;">
+          <input type="text" id="local-attach-uid" placeholder="UID de l'utilisateur" style="flex:1;min-width:160px;padding:9px 10px;font-size:14px;border:1.5px solid var(--line);border-radius:8px;">
+          <label style="font-size:12.5px;display:flex;align-items:center;gap:4px;"><input type="checkbox" id="local-attach-is-admin"> Administrateur de cet établissement</label>
+          <button class="btn-secondary" id="btn-local-attach-user" type="button">Rattacher</button>
+        </div>
+        <span class="admin-msg" id="local-attach-msg"></span>
       </div>
 
       <div class="admin-body" id="local-user-edit" style="display:none;flex-direction:column;align-items:stretch;">
@@ -1255,6 +1274,8 @@ const elStatusTxt = document.getElementById('status-text');
 const elBtnImport = document.getElementById('btn-import');
 const elFileImport = document.getElementById('file-import');
 const elImportMsg  = document.getElementById('import-msg');
+const elImportTargetEtabSelect = document.getElementById('import-target-etab');
+const elImportTargetEtabFixed  = document.getElementById('import-target-etab-fixed');
 const elAdminZone    = document.getElementById('admin-zone');
 const elAdminDenied  = document.getElementById('admin-denied');
 const elAdminAllowed = document.getElementById('admin-allowed');
@@ -1267,7 +1288,15 @@ const elLocalCreateEmail    = document.getElementById('local-create-email');
 const elLocalCreateIsAdmin  = document.getElementById('local-create-is-admin');
 const elBtnLocalCreateUser  = document.getElementById('btn-local-create-user');
 const elLocalCreateMsg      = document.getElementById('local-create-msg');
+const elLocalAttachNom      = document.getElementById('local-attach-nom');
+const elLocalAttachPrenom   = document.getElementById('local-attach-prenom');
+const elLocalAttachUid      = document.getElementById('local-attach-uid');
+const elLocalAttachIsAdmin  = document.getElementById('local-attach-is-admin');
+const elBtnLocalAttachUser  = document.getElementById('btn-local-attach-user');
+const elLocalAttachMsg      = document.getElementById('local-attach-msg');
+const elLinkLocalConsole    = document.getElementById('link-local-console');
 const elLinkSuperConsole    = document.getElementById('link-super-console');
+if(elLinkLocalConsole) elLinkLocalConsole.href = FIREBASE_CONSOLE_USERS_URL;
 if(elLinkSuperConsole) elLinkSuperConsole.href = FIREBASE_CONSOLE_USERS_URL;
 const elLocalDemandesBlock  = document.getElementById('local-demandes-block');
 const elLocalDemandesList   = document.getElementById('local-demandes-list');
@@ -1719,6 +1748,25 @@ async function resolveEtablissement(user){
   elAdminAllowed.style.display = isAdmin ? 'flex' : 'none';
   elAdminDenied.style.display  = isAdmin ? 'none' : 'flex';
 
+  // L'import doit cibler explicitement un établissement, indépendamment de
+  // celui auquel la session en cours est rattachée (currentEtabId), pour
+  // éviter d'écraser par erreur les données d'un autre établissement.
+  if(isAdmin){
+    if(isSuperAdmin){
+      // Super-admin : choix explicite obligatoire dans la liste de tous les
+      // établissements (aucune valeur pré-sélectionnée par défaut).
+      elImportTargetEtabSelect.style.display = 'inline-block';
+      elImportTargetEtabFixed.style.display = 'none';
+      loadEtablissementsList(); // repeuple aussi le sélecteur d'import
+    }else{
+      // Admin local : rattaché à un seul établissement, pas de choix possible —
+      // mais on affiche quand même son nom en toutes lettres pour confirmation visuelle.
+      elImportTargetEtabSelect.style.display = 'none';
+      elImportTargetEtabFixed.style.display = 'inline';
+      elImportTargetEtabFixed.textContent = elEtabNameValue.textContent || etabId;
+    }
+  }
+
   if(isAdmin){
     elLocalUserAttach.style.display = 'flex';
     elLocalAttachEtabName.textContent = elEtabNameValue.textContent || etabId;
@@ -1750,6 +1798,12 @@ async function loadEtablissementsList(){
     elAttachEtabSelect.innerHTML = '';
     elCreateEtabSelect.innerHTML = '';
     elEditEtabSelect.innerHTML = '';
+    // Le sélecteur de l'établissement CIBLE de l'import garde une sélection
+    // déjà faite par l'admin (on ne veut pas la réinitialiser silencieusement
+    // à chaque rafraîchissement de la liste des établissements) et repart
+    // toujours d'une option vide obligatoire tant que rien n'a été choisi.
+    const previousImportTarget = elImportTargetEtabSelect.value;
+    elImportTargetEtabSelect.innerHTML = '<option value="" disabled' + (previousImportTarget ? '' : ' selected') + '>— Choisir un établissement —</option>';
     ids.forEach(id=>{
       const entry = val[id] || {};
       const nom = entry.nom || id;
@@ -1764,7 +1818,9 @@ async function loadEtablissementsList(){
       elAttachEtabSelect.appendChild(opt);
       elCreateEtabSelect.appendChild(opt.cloneNode(true));
       elEditEtabSelect.appendChild(opt.cloneNode(true));
+      elImportTargetEtabSelect.appendChild(opt.cloneNode(true));
     });
+    if(previousImportTarget) elImportTargetEtabSelect.value = previousImportTarget;
     elEtabList.innerHTML = listHtml || '<span style="color:var(--muted);">Aucun établissement pour le moment.</span>';
   }catch(err){
     elEtabList.textContent = 'Erreur de chargement : ' + err.message;
@@ -1828,16 +1884,8 @@ async function attachUserToEtab(){
     if(asAdmin){
       await db.ref('etablissements/' + etabId + '/admins/' + uid).set(true);
     }
-    // Si le super-admin rattache son PROPRE compte (cas du §7 de la doc :
-    // usage quotidien), on le marque "masque" pour qu'il n'apparaisse jamais
-    // dans la liste "Modifier un utilisateur" consultée par les admins locaux.
-    const estMonPropreCompte = isSuperAdmin && currentUser && currentUser.uid === uid;
-    if(estMonPropreCompte){
-      await db.ref('users/' + uid + '/masque').set(true);
-    }
     elAttachMsg.className = 'admin-msg ok';
-    elAttachMsg.textContent = 'Utilisateur rattaché à ' + etabId + (asAdmin ? ' (admin local)' : '') +
-      (estMonPropreCompte ? '. Votre propre compte reste masqué pour les admins locaux.' : '.');
+    elAttachMsg.textContent = 'Utilisateur rattaché à ' + etabId + (asAdmin ? ' (admin local)' : '') + '.';
     elAttachNom.value = '';
     elAttachPrenom.value = '';
     elAttachUid.value = '';
@@ -1907,10 +1955,48 @@ elBtnCreateEtab.addEventListener('click', createEtablissement);
 elBtnAttachUser.addEventListener('click', attachUserToEtab);
 elBtnMigrate.addEventListener('click', migrateLegacyData);
 
-// NB : le rattachement par UID d'un compte déjà existant est réservé au
-// super-administrateur (panneau « Super-administration »), qui est seul à
-// avoir accès à la Console Firebase permettant de retrouver un UID. Un admin
-// local ne peut pas manipuler d'UID.
+// Rattache un utilisateur à l'établissement de l'admin connecté (pas de choix
+// d'établissement : il est automatiquement celui de la personne qui rattache).
+async function attachUserToMyEtab(){
+  const nom = formatNomCasse(elLocalAttachNom.value);
+  const prenom = formatPrenomCasse(elLocalAttachPrenom.value);
+  const uid = (elLocalAttachUid.value || '').trim();
+  const asAdmin = elLocalAttachIsAdmin.checked;
+  elLocalAttachMsg.className = 'admin-msg';
+  elLocalAttachMsg.textContent = '';
+  if(!currentEtabId){
+    elLocalAttachMsg.className = 'admin-msg err';
+    elLocalAttachMsg.textContent = 'Aucun établissement actif sur ce compte.';
+    return;
+  }
+  if(!uid || uid.length < 10){
+    elLocalAttachMsg.className = 'admin-msg err';
+    elLocalAttachMsg.textContent = 'Indiquez un UID valide (Console Firebase > Authentication).';
+    return;
+  }
+  elBtnLocalAttachUser.disabled = true;
+  elLocalAttachMsg.textContent = 'Rattachement…';
+  try{
+    await db.ref('users/' + uid + '/etablissementId').set(currentEtabId);
+    if(nom) await db.ref('users/' + uid + '/nom').set(nom);
+    if(prenom) await db.ref('users/' + uid + '/prenom').set(prenom);
+    if(asAdmin){
+      await db.ref('etablissements/' + currentEtabId + '/admins/' + uid).set(true);
+    }
+    elLocalAttachMsg.className = 'admin-msg ok';
+    elLocalAttachMsg.textContent = 'Utilisateur rattaché à ' + (elEtabNameValue.textContent || currentEtabId) + (asAdmin ? ' (administrateur)' : '') + '.';
+    elLocalAttachNom.value = '';
+    elLocalAttachPrenom.value = '';
+    elLocalAttachUid.value = '';
+    elLocalAttachIsAdmin.checked = false;
+  }catch(err){
+    elLocalAttachMsg.className = 'admin-msg err';
+    elLocalAttachMsg.textContent = 'Erreur : ' + err.message;
+  }finally{
+    elBtnLocalAttachUser.disabled = false;
+  }
+}
+elBtnLocalAttachUser.addEventListener('click', attachUserToMyEtab);
 
 // --- Création de compte utilisateur sans quitter la session admin en cours ---
 // Une "app" Firebase secondaire isole la session du compte fraîchement créé :
@@ -1974,14 +2060,19 @@ async function createAndAttachUser(email, etabId, asAdmin, msgEl, btnEl, nom, pr
   }catch(err){
     msgEl.className = 'admin-msg err';
     if(err.code === 'auth/email-already-in-use'){
-      // Seul le super-administrateur a accès aux UID (Console Firebase) : le
-      // contenu du message dépend donc entièrement du contexte d'appel via
-      // onEmailExists (voir prefillSuperAttach vs. le rappel "admin local").
       if(typeof onEmailExists === 'function'){
-        try{ onEmailExists({ email: email, nom: nom, prenom: prenom, asAdmin: asAdmin, msgEl: msgEl }); }catch(e){ /* non bloquant */ }
-      }else{
-        msgEl.textContent = 'Un compte existe déjà avec cet e-mail.';
+        try{ onEmailExists({ email: email, nom: nom, prenom: prenom, asAdmin: asAdmin }); }catch(e){ /* non bloquant */ }
       }
+      let copieOk = false;
+      if(navigator.clipboard && navigator.clipboard.writeText){
+        navigator.clipboard.writeText(email).then(()=>{}).catch(()=>{});
+        copieOk = true;
+      }
+      msgEl.innerHTML = 'Un compte existe déjà avec cet e-mail. Le formulaire de rattachement ci-dessous a été pré-rempli (NOM/Prénom' +
+        (asAdmin ? '/Administrateur' : '') + ') : ouvrez la ' +
+        '<a href="' + FIREBASE_CONSOLE_USERS_URL + '" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline;">Console Firebase</a>' +
+        ', recherchez « ' + escapeHtml(email) + ' »' + (copieOk ? ' (copié dans le presse-papiers)' : '') +
+        ', copiez son UID, collez-le dans le champ « UID de l\'utilisateur » puis cliquez sur « Rattacher ».';
     }else{
       msgEl.textContent = 'Erreur : ' + err.message;
     }
@@ -1990,16 +2081,19 @@ async function createAndAttachUser(email, etabId, asAdmin, msgEl, btnEl, nom, pr
   }
 }
 
-// Un admin local n'a jamais accès aux UID (seul le super-administrateur peut
-// consulter la Console Firebase) : on se contente de l'orienter vers lui,
-// sans lien ni indice technique.
-function notifyLocalEmailExists({ email }){
-  elLocalCreateMsg.className = 'admin-msg err';
-  elLocalCreateMsg.textContent = 'Un compte existe déjà avec cet e-mail (' + email + '). Seul le super-administrateur peut le rattacher à un établissement : transmettez-lui l\'e-mail et l\'établissement concerné.';
+function prefillLocalAttach({ nom, prenom, asAdmin }){
+  elLocalAttachNom.value = formatNomCasse(nom || '');
+  elLocalAttachPrenom.value = formatPrenomCasse(prenom || '');
+  elLocalAttachIsAdmin.checked = !!asAdmin;
+  elLocalAttachUid.value = '';
+  elLocalAttachMsg.className = 'admin-msg';
+  elLocalAttachMsg.textContent = '';
+  elLocalAttachUid.focus();
+  elLocalAttachUid.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 
 elBtnLocalCreateUser.addEventListener('click', ()=>{
-  createAndAttachUser(elLocalCreateEmail.value, currentEtabId, elLocalCreateIsAdmin.checked, elLocalCreateMsg, elBtnLocalCreateUser, elLocalCreateNom.value, elLocalCreatePrenom.value, notifyLocalEmailExists)
+  createAndAttachUser(elLocalCreateEmail.value, currentEtabId, elLocalCreateIsAdmin.checked, elLocalCreateMsg, elBtnLocalCreateUser, elLocalCreateNom.value, elLocalCreatePrenom.value, prefillLocalAttach)
     .then(()=>{
       if(elLocalCreateMsg.className.indexOf('ok') !== -1){
         elLocalCreateNom.value = '';
@@ -2080,10 +2174,7 @@ function renderUsersEditList(container, usersObj, adminsObj, etabId, isSuper){
   // continue de tout voir, y compris ces profils, pour pouvoir les nettoyer
   // (bouton Supprimer + UID copiable, cf. panneau super-admin).
   if(!isSuper){
-    // Un profil sans e-mail n'est pas exploitable par un admin local ; un
-    // profil marqué "masque" est le compte du super-administrateur lui-même
-    // (jamais montré à un admin local, cf. attachUserToEtab).
-    uids = uids.filter(uid => !!(usersObj[uid] || {}).email && !(usersObj[uid] || {}).masque);
+    uids = uids.filter(uid => !!(usersObj[uid] || {}).email);
   }
   if(uids.length === 0){
     const masques = totalAvant - uids.length;
@@ -2271,10 +2362,7 @@ async function handleApproveDemande(btn){
   btn.disabled = true;
 
   const tempMsgEl = msgEl || { className: '', textContent: '' };
-  const onEmailExists = isSuperAdmin ? prefillSuperAttach(etabId) : (({ email: em })=>{
-    tempMsgEl.className = 'admin-msg err';
-    tempMsgEl.textContent = 'Un compte existe déjà avec cet e-mail (' + em + '). Seul le super-administrateur peut le rattacher : transmettez-lui la demande.';
-  });
+  const onEmailExists = isSuperAdmin ? prefillSuperAttach(etabId) : prefillLocalAttach;
   await createAndAttachUser(email, etabId, asAdmin, tempMsgEl, btn, nom, prenom, onEmailExists);
 
   if(tempMsgEl.className.indexOf('ok') !== -1){
@@ -2824,8 +2912,31 @@ elResults.addEventListener('click', (ev)=>{
 });
 
 // --- Import d'un nouveau fichier Liste_PSM.xlsx (réservé aux administrateurs) ---
+//
+// IMPORTANT : l'import cible TOUJOURS un établissement choisi explicitement
+// (targetEtabId ci-dessous), jamais la variable globale `produitsRef` qui,
+// elle, suit l'établissement auquel la session de l'admin est ACTUELLEMENT
+// rattachée (currentEtabId). Ces deux notions peuvent diverger — notamment
+// pour un super-admin qui gère plusieurs établissements — et les confondre a
+// déjà provoqué l'écrasement accidentel des données d'un autre établissement.
+function getImportTargetEtabId(){
+  return isSuperAdmin ? (elImportTargetEtabSelect.value || '') : (currentEtabId || '');
+}
+function getImportTargetEtabLabel(targetEtabId){
+  if(isSuperAdmin){
+    const opt = elImportTargetEtabSelect.options[elImportTargetEtabSelect.selectedIndex];
+    return (opt && opt.value) ? opt.textContent : targetEtabId;
+  }
+  return elEtabNameValue.textContent || targetEtabId;
+}
+
 elBtnImport.addEventListener('click', ()=>{
   if(!isAdmin) return;
+  if(!getImportTargetEtabId()){
+    elImportMsg.className = 'admin-msg err';
+    elImportMsg.textContent = 'Choisissez d\'abord l\'établissement cible de l\'import ci-dessus.';
+    return;
+  }
   elFileImport.click();
 });
 
@@ -2838,15 +2949,27 @@ elFileImport.addEventListener('change', (ev)=>{
     return;
   }
 
-  if(!dbReady){
+  if(!db){
     elImportMsg.className = 'admin-msg err';
     elImportMsg.textContent = 'Connexion à la base non prête, réessayez dans un instant.';
     return;
   }
 
+  const targetEtabId = getImportTargetEtabId();
+  if(!targetEtabId){
+    elImportMsg.className = 'admin-msg err';
+    elImportMsg.textContent = 'Aucun établissement cible sélectionné.';
+    elFileImport.value = '';
+    return;
+  }
+  const targetLabel = getImportTargetEtabLabel(targetEtabId);
+  const targetProduitsRef = db.ref('etablissements/' + targetEtabId + '/produits');
+
   const proceed = window.confirm(
-    'Cela va remplacer les données pour TOUS les utilisateurs connectés ' +
-    '(les quantités seront réinitialisées à celles du fichier importé). Continuer ?'
+    'Vous allez importer ce fichier dans l\'établissement :\n\n« ' + targetLabel + ' »\n\n' +
+    'Cela va REMPLACER TOUTES les données produits de CET établissement pour tous ses utilisateurs ' +
+    '(quantités réinitialisées à celles du fichier importé). L\'ancien contenu sera sauvegardé automatiquement avant l\'écrasement.\n\n' +
+    'Continuer ?'
   );
   if(!proceed){ elFileImport.value = ''; return; }
 
@@ -2903,10 +3026,23 @@ elFileImport.addEventListener('change', (ev)=>{
         throw new Error('Aucune ligne exploitable trouvée dans le fichier.');
       }
 
-      elImportMsg.textContent = 'Envoi de ' + count + ' lignes vers la base partagée…';
-      await produitsRef.set(newProduits);
+      elImportMsg.textContent = 'Sauvegarde de l\'ancien contenu de « ' + targetLabel + ' »…';
+      let backupOk = true;
+      try{
+        const oldSnap = await targetProduitsRef.once('value');
+        if(oldSnap.exists()){
+          await db.ref('etablissements/' + targetEtabId + '/produits_backups/' + Date.now()).set(oldSnap.val());
+        }
+      }catch(backupErr){
+        backupOk = false;
+        console.error('Sauvegarde avant import impossible :', backupErr);
+      }
+
+      elImportMsg.textContent = 'Envoi de ' + count + ' lignes vers « ' + targetLabel + ' »…';
+      await targetProduitsRef.set(newProduits);
       elImportMsg.className = 'admin-msg ok';
-      elImportMsg.textContent = 'Import terminé (' + count + ' lignes), données mises à jour pour tout le monde ✓';
+      elImportMsg.textContent = 'Import terminé (' + count + ' lignes) pour « ' + targetLabel + ' » ✓' +
+        (backupOk ? ' (ancien contenu sauvegardé)' : ' — ATTENTION : la sauvegarde de l\'ancien contenu a échoué, voir la console.');
     }catch(err){
       elImportMsg.className = 'admin-msg err';
       elImportMsg.textContent = 'Erreur : ' + err.message;
