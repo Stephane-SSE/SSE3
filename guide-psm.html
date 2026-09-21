@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Mode d'emploi rapide · PSM</title>
+<style>
+  :root{
+    --ink:#132A32;
+    --navy:#0E3B4D;
+    --teal:#0F5D63;
+    --teal-light:#E7F1F0;
+    --amber:#D98B3D;
+    --paper:#F6F5F1;
+    --card:#FFFFFF;
+    --line:#DDE3E1;
+    --muted:#5A6B6C;
+    --radius:10px;
+  }
+  *{box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--paper);
+    color:var(--ink);
+    font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing:antialiased;
+    padding-bottom:60px;
+  }
+
+  header.top{
+    background:var(--navy);
+    color:#fff;
+    padding:22px 18px 26px;
+    position:relative;
+    overflow:hidden;
+  }
+  header.top::after{
+    content:"";
+    position:absolute;
+    right:-40px; top:-40px;
+    width:160px; height:160px;
+    border-radius:50%;
+    background:radial-gradient(circle, rgba(217,139,61,0.35), transparent 70%);
+  }
+  .eyebrow{
+    font-family:'Courier New', monospace;
+    letter-spacing:0.14em;
+    text-transform:uppercase;
+    font-size:11px;
+    color:var(--amber);
+    margin:0 0 6px;
+  }
+  h1{
+    font-family:'Arial Narrow', 'Helvetica Neue Condensed', Arial, sans-serif;
+    font-weight:800;
+    font-size:28px;
+    letter-spacing:0.01em;
+    margin:0;
+    text-transform:uppercase;
+  }
+  .sub{
+    margin:6px 0 0;
+    font-size:13.5px;
+    color:#C9D6D3;
+    max-width:560px;
+    position:relative;
+    z-index:1;
+  }
+  .back-link{
+    position:absolute;
+    top:14px; right:14px;
+    font-size:12px;
+    font-weight:700;
+    color:#fff;
+    background:rgba(255,255,255,0.12);
+    border:1px solid rgba(255,255,255,0.3);
+    border-radius:6px;
+    padding:5px 10px;
+    text-decoration:none;
+  }
+  .back-link:hover{ background:rgba(255,255,255,0.22); }
+
+  main{
+    max-width:760px;
+    margin:0 auto;
+    padding:0 14px;
+  }
+
+  nav.quicknav{
+    background:var(--card);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    padding:12px 14px;
+    margin-top:-16px;
+    margin-bottom:22px;
+    position:relative;
+    z-index:2;
+    box-shadow:0 6px 18px rgba(14,59,77,0.08);
+    display:flex;
+    flex-wrap:wrap;
+    gap:8px;
+  }
+  nav.quicknav a{
+    font-size:12.5px;
+    font-weight:700;
+    color:var(--teal);
+    background:var(--teal-light);
+    border-radius:999px;
+    padding:6px 12px;
+    text-decoration:none;
+    white-space:nowrap;
+  }
+  nav.quicknav a:hover{ background:#d9ece9; }
+  nav.quicknav a.admin{ color:var(--navy); background:#EDE6DA; }
+  nav.quicknav a.admin:hover{ background:#e2d8c6; }
+
+  h2{
+    font-family:'Arial Narrow', 'Helvetica Neue Condensed', Arial, sans-serif;
+    font-weight:800;
+    font-size:20px;
+    color:var(--navy);
+    letter-spacing:0.01em;
+    margin:0 0 4px;
+    scroll-margin-top:14px;
+  }
+  .section-tag{
+    display:inline-block;
+    font-family:'Courier New', monospace;
+    font-size:10.5px;
+    letter-spacing:0.08em;
+    text-transform:uppercase;
+    color:var(--teal);
+    margin-bottom:4px;
+  }
+  h3{
+    font-size:14.5px;
+    color:var(--navy);
+    margin:18px 0 6px;
+  }
+  p{ font-size:14px; line-height:1.55; margin:6px 0 10px; }
+  .card{
+    background:var(--card);
+    border:1px solid var(--line);
+    border-left:5px solid var(--teal);
+    border-radius:8px;
+    padding:16px 18px;
+    margin-bottom:16px;
+  }
+  .card.admin{ border-left-color:var(--navy); }
+  .card.super{ border-left-color:var(--amber); }
+  ol, ul{ margin:8px 0 10px; padding-left:22px; font-size:14px; line-height:1.6; }
+  li{ margin-bottom:4px; }
+  .note{
+    background:var(--teal-light);
+    border-radius:8px;
+    padding:10px 12px;
+    font-size:13px;
+    color:var(--ink);
+    margin:10px 0;
+  }
+  .note b{ color:var(--navy); }
+  .warn{
+    background:#FCF1E4;
+    border-left:3px solid var(--amber);
+    border-radius:6px;
+    padding:10px 12px;
+    font-size:13px;
+    color:var(--ink);
+    margin:10px 0;
+  }
+  .warn b{ color:#9a5a0f; }
+  code{
+    font-family:'Courier New', monospace;
+    background:var(--teal-light);
+    color:var(--teal);
+    padding:1px 5px;
+    border-radius:4px;
+    font-size:12.5px;
+  }
+  .role-badge{
+    display:inline-block;
+    font-size:10.5px;
+    font-weight:700;
+    text-transform:uppercase;
+    letter-spacing:0.05em;
+    padding:2px 8px;
+    border-radius:999px;
+    margin-left:6px;
+    vertical-align:middle;
+  }
+  .role-badge.user{ background:var(--teal-light); color:var(--teal); }
+  .role-badge.admin{ background:#EDE6DA; color:var(--navy); }
+  .role-badge.super{ background:#FCF1E4; color:#9a5a0f; }
+
+  footer.note{
+    max-width:760px;
+    margin:24px auto 0;
+    padding:0 14px;
+    font-size:11.5px;
+    color:var(--muted);
+    text-align:center;
+  }
+
+  @media (min-width:600px){
+    h1{ font-size:32px; }
+  }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <a class="back-link" href="index.html">← Ouvrir l'application</a>
+  <p class="eyebrow">Poste Sanitaire Mobile</p>
+  <h1>Mode d'emploi rapide</h1>
+  <p class="sub">L'application PSM permet de retrouver un produit dans les malles, de consulter la quantité disponible et d'enregistrer un prélèvement, en temps réel et partagé entre tous les utilisateurs d'un même établissement.</p>
+</header>
+
+<main>
+  <nav class="quicknav">
+    <a href="#compte">Se connecter</a>
+    <a href="#recherche">Rechercher un produit</a>
+    <a href="#prelevement">Enregistrer un prélèvement</a>
+    <a href="#fin-prelevement">Fin de prélèvement</a>
+    <a href="#astuces">Astuces</a>
+    <a class="admin" href="#admin">Administrateurs</a>
+    <a class="admin" href="#super-admin">Super-administrateurs</a>
+  </nav>
+
+  <section id="compte">
+    <span class="section-tag">Démarrer</span>
+    <h2>Se connecter <span class="role-badge user">Tous les utilisateurs</span></h2>
+    <div class="card">
+      <p>Chaque utilisateur dispose d'un compte personnel (e-mail + mot de passe), rattaché à un seul établissement.</p>
+      <h3>Vous avez déjà un compte</h3>
+      <ol>
+        <li>Saisissez votre e-mail et votre mot de passe, puis cliquez sur « Se connecter ».</li>
+        <li>Mot de passe oublié ? Saisissez votre e-mail puis cliquez sur « Mot de passe oublié ? » : un lien de réinitialisation vous est envoyé.</li>
+      </ol>
+      <h3>Vous n'avez pas encore de compte</h3>
+      <ol>
+        <li>Sur l'écran de connexion, cliquez sur « Pas encore de compte ? Demander un accès ».</li>
+        <li>Renseignez votre nom, prénom, e-mail et sélectionnez votre établissement.</li>
+        <li>Envoyez la demande : elle est transmise à l'administrateur de votre établissement.</li>
+        <li>Une fois la demande approuvée, vous recevez un e-mail pour définir votre mot de passe et pouvez vous connecter.</li>
+      </ol>
+    </div>
+  </section>
+
+  <section id="recherche">
+    <span class="section-tag">Consulter</span>
+    <h2>Rechercher un produit <span class="role-badge user">Tous les utilisateurs</span></h2>
+    <div class="card">
+      <p>Trois champs de recherche, combinables : <b>Famille de produit</b>, <b>Produit référentiel</b> et <b>Libellé catalogue</b>.</p>
+      <ol>
+        <li>Renseignez un ou plusieurs champs (un mot suffit, pas besoin de l'orthographe exacte).</li>
+        <li>Sélectionnez un produit dans la liste des résultats.</li>
+        <li>La fiche produit affiche chaque malle où il se trouve, avec sa quantité disponible dans <i>cette</i> malle.</li>
+      </ol>
+    </div>
+  </section>
+
+  <section id="prelevement">
+    <span class="section-tag">Consommer un produit</span>
+    <h2>Enregistrer un prélèvement <span class="role-badge user">Tous les utilisateurs</span></h2>
+    <div class="card">
+      <ol>
+        <li>Depuis la fiche produit, repérez la malle concernée.</li>
+        <li>Saisissez la quantité prélevée dans le champ correspondant.</li>
+        <li>Cliquez sur « Valider » : la quantité disponible est mise à jour instantanément pour tous les utilisateurs connectés.</li>
+      </ol>
+      <div class="note">Un prélèvement ne peut jamais dépasser la quantité disponible affichée pour cette malle.</div>
+    </div>
+  </section>
+
+  <section id="fin-prelevement">
+    <span class="section-tag">Clôturer</span>
+    <h2>Fin de prélèvement <span class="role-badge user">Tous les utilisateurs</span></h2>
+    <div class="card">
+      <p>À la fin d'une intervention ou d'une journée, générez un récapitulatif de tout ce qui a été prélevé.</p>
+      <ol>
+        <li>Cliquez sur « Fin de prélèvement ».</li>
+        <li>Un fichier Excel et un PDF sont téléchargés automatiquement, listant chaque prélèvement (malle, produit, quantité, heure, utilisateur).</li>
+        <li>Besoin de ré-éditer le récapitulatif d'un autre jour ? Choisissez la date dans le panneau qui s'affiche et cliquez sur « Ré-exporter ce jour ».</li>
+      </ol>
+      <div class="note">L'historique des prélèvements est conservé en base : vous pouvez le ré-exporter à tout moment, même après déconnexion.</div>
+    </div>
+  </section>
+
+  <section id="astuces">
+    <span class="section-tag">Bon à savoir</span>
+    <h2>Astuces</h2>
+    <div class="card">
+      <ul>
+        <li>La recherche ignore les accents et les majuscules.</li>
+        <li>L'espace ou l'astérisque (<code>*</code>) agit comme joker dans le champ « Libellé catalogue » — ex. <code>SALEM 18</code> ou <code>SALEM*18</code> trouvent la même chose.</li>
+        <li>Les quantités affichées <b>ne sont jamais additionnées entre elles</b> : un même produit présent dans plusieurs malles affiche une quantité disponible distincte par malle.</li>
+        <li>Toutes les données sont partagées en temps réel entre les utilisateurs d'un même établissement : ce que vous voyez est toujours à jour.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section id="admin">
+    <span class="section-tag">Rôle administrateur</span>
+    <h2>Pour les administrateurs <span class="role-badge admin">Administrateur d'établissement</span></h2>
+    <p>Un administrateur voit, en plus de la recherche, le menu « Mise à jour des données » en bas de la page de recherche.</p>
+
+    <h3 id="admin-import">Importer la liste des produits (Liste_PSM.xlsx)</h3>
+    <div class="card admin">
+      <p>Le fichier à charger est l'export <b>SIGESSE (stock moyen)</b> de votre établissement.</p>
+      <ol>
+        <li>Ouvrez le menu « Mise à jour des données ».</li>
+        <li>Cliquez sur « Charger un fichier Liste_PSM.xlsx » et sélectionnez votre export SIGESSE.</li>
+        <li>Vérifiez bien le nom de l'établissement affiché dans la fenêtre de confirmation avant de valider.</li>
+      </ol>
+      <div class="warn"><b>Attention :</b> cet import remplace <b>toutes</b> les données produits de l'établissement concerné, pour tous ses utilisateurs (quantités remises au niveau du fichier importé). L'ancien contenu est sauvegardé automatiquement avant l'écrasement, mais vérifiez toujours l'établissement ciblé avant de confirmer.</div>
+    </div>
+
+    <h3 id="admin-comptes">Créer ou modifier un compte utilisateur</h3>
+    <div class="card admin">
+      <p><b>Créer un nouveau compte</b></p>
+      <ol>
+        <li>Renseignez NOM, Prénom et e-mail de la personne (cochez « Administrateur » si besoin).</li>
+        <li>Cliquez sur « Créer le compte » : un e-mail est envoyé automatiquement pour que la personne définisse son mot de passe.</li>
+      </ol>
+      <p><b>Modifier un compte existant</b></p>
+      <ul>
+        <li>Corriger un NOM/Prénom, ou basculer le statut administrateur, depuis la liste des utilisateurs de votre établissement.</li>
+        <li>« Supprimer » retire l'accès de la personne à votre établissement — son compte de connexion n'est pas supprimé pour autant.</li>
+      </ul>
+    </div>
+
+    <h3 id="admin-demandes">Traiter les demandes d'inscription</h3>
+    <div class="card admin">
+      <p>Les demandes d'accès envoyées depuis l'écran de connexion apparaissent dans « Demandes d'inscription en attente ».</p>
+      <ul>
+        <li><b>Approuver</b> crée le compte et envoie l'e-mail de définition de mot de passe à la personne.</li>
+        <li><b>Refuser</b> ouvre un brouillon d'e-mail pré-rempli pour prévenir la personne.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section id="super-admin">
+    <span class="section-tag">Rôle super-administrateur</span>
+    <h2>Pour les super-administrateurs <span class="role-badge super">Tous établissements</span></h2>
+    <div class="card super">
+      <p>En plus de tout ce qui précède, le panneau « Super-administration » permet de :</p>
+      <ul>
+        <li>Créer un nouvel établissement.</li>
+        <li>Créer ou rattacher un compte pour n'importe quel établissement.</li>
+        <li>Modifier un utilisateur de n'importe quel établissement.</li>
+        <li>Traiter les demandes d'inscription, tous établissements confondus.</li>
+      </ul>
+      <div class="warn"><b>Important :</b> lors d'un import Liste_PSM.xlsx, sélectionnez toujours explicitement l'établissement cible dans la liste — aucun établissement n'est présélectionné par défaut, précisément pour éviter d'écraser par erreur les données d'un autre établissement que celui auquel vous êtes vous-même rattaché.</div>
+    </div>
+  </section>
+</main>
+
+<footer class="note">PSM &middot; mode d'emploi rapide &middot; les données sont partagées en temps réel entre les utilisateurs d'un même établissement.</footer>
+
+</body>
+</html>
