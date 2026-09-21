@@ -356,8 +356,12 @@
     padding:6px 0 12px;
     cursor:pointer;
     font-family:inherit;
+    -webkit-appearance:none;
+    appearance:none;
+    outline:none;
   }
   .btn-back:hover{ text-decoration:underline; }
+  .btn-back:focus-visible{ outline:2px solid var(--teal); outline-offset:2px; border-radius:4px; }
 
   .malles-label{
     margin-top:12px;
@@ -571,8 +575,12 @@
     cursor:pointer;
     width:100%;
     font-family:inherit;
+    -webkit-appearance:none;
+    appearance:none;
+    outline:none;
   }
   .login-forgot:hover{ text-decoration:underline; }
+  .login-forgot:focus-visible{ outline:2px solid var(--teal); outline-offset:2px; border-radius:4px; }
 
   /* ---- Barre utilisateur (dans le header) ---- */
   .user-bar{
