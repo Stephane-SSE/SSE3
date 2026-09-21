@@ -635,6 +635,7 @@
       <div class="login-msg" id="login-msg"></div>
       <button class="login-forgot" id="btn-forgot" type="button">Mot de passe oublié ?</button>
       <button class="login-forgot" id="btn-show-request" type="button">Pas encore de compte ? Demander un accès</button>
+      <a class="login-forgot" href="guide-utilisateur.html" target="_blank" rel="noopener">📖 Mode d'emploi rapide</a>
     </div>
 
     <!-- Panneau DEMANDE DE COMPTE -->
@@ -901,7 +902,7 @@
   </section>
 </main>
 
-<footer class="note">Données partagées en temps réel (Firebase) &middot; recherche sur texte partiel, insensible aux accents/majuscules &middot; les quantités affichées ne sont jamais additionnées entre elles.<br><a href="guide-psm.html" style="color:var(--teal);font-weight:700;">📖 Mode d'emploi rapide</a></footer>
+<footer class="note">Données partagées en temps réel (Firebase) &middot; recherche sur texte partiel, insensible aux accents/majuscules &middot; les quantités affichées ne sont jamais additionnées entre elles.<br><a href="guide-utilisateur.html" id="guide-link" target="_blank" rel="noopener" style="color:var(--teal);font-weight:700;">📖 Mode d'emploi rapide</a></footer>
 
 <script>
 /* ==========================================================================
@@ -1315,6 +1316,7 @@ const elBtnLocalRefreshUsers= document.getElementById('btn-local-refresh-users')
 const elLocalUsersEditList  = document.getElementById('local-users-edit-list');
 // Établissement
 const elEtabLine      = document.getElementById('etab-line');
+const elGuideLink     = document.getElementById('guide-link');
 const elEtabNameValue = document.getElementById('etab-name-value');
 const elNotAttachedOverlay = document.getElementById('not-attached-overlay');
 const elBtnLogoutNotAttached = document.getElementById('btn-logout-notattached');
@@ -1598,6 +1600,23 @@ function setInputsEnabled(enabled){
   elBtnFinPrelevement.disabled = !enabled;
 }
 
+// Le lien d'aide en pied de page pointe vers le guide correspondant au rôle
+// de la personne connectée — jamais vers un guide de niveau supérieur au sien
+// (un utilisateur ne doit pas se voir proposer le guide admin/super-admin).
+function updateGuideLink(){
+  if(!elGuideLink) return;
+  if(isSuperAdmin){
+    elGuideLink.href = 'guide-super-admin.html';
+    elGuideLink.textContent = '📖 Mode d\'emploi (super-administrateur)';
+  }else if(isAdmin){
+    elGuideLink.href = 'guide-admin.html';
+    elGuideLink.textContent = '📖 Mode d\'emploi (administrateur)';
+  }else{
+    elGuideLink.href = 'guide-utilisateur.html';
+    elGuideLink.textContent = '📖 Mode d\'emploi rapide';
+  }
+}
+
 async function seedFromJsonIfEmpty(){
   // N'amorce qu'un seul établissement historique depuis psm.json : les
   // nouveaux établissements démarrent vides et se peuplent via import xlsx.
@@ -1710,6 +1729,7 @@ async function resolveEtablissement(user){
   }else{
     elSuperadminZone.style.display = 'none';
   }
+  updateGuideLink();
 
   let etabId = null;
   try{
@@ -1751,6 +1771,7 @@ async function resolveEtablissement(user){
   }catch(e){ isLocal = false; }
   isLocalAdmin = isLocal;
   isAdmin = isSuperAdmin || isLocalAdmin;
+  updateGuideLink();
 
   elAdminZone.style.display = 'block';
   elAdminAllowed.style.display = isAdmin ? 'flex' : 'none';
